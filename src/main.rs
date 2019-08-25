@@ -51,28 +51,25 @@ fn floor_material() -> Material {
 }
 
 fn floor() -> Shape {
-    let mut floor = Shape::sphere();
-    floor.set_transform(scaling(10., 0.01, 10.));
+    let mut floor = Shape::plane();
     floor.set_material(floor_material());
     floor
 }
 
 fn left_wall() -> Shape {
-    let mut wall = Shape::sphere();
+    let mut wall = Shape::plane();
     let pi = std::f64::consts::PI;
     wall.set_transform(translation(&Vector::new(0., 0., 5.))
-                       * rotation_y(-pi/4.) * rotation_x(pi/2.)
-                       * scaling(10., 0.01, 10.));
+                       * rotation_y(-pi/4.) * rotation_x(pi/2.));
     wall.set_material(floor_material());
     wall
 }
 
 fn right_wall() -> Shape {
-    let mut wall = Shape::sphere();
+    let mut wall = Shape::plane();
     let pi = std::f64::consts::PI;
     wall.set_transform(translation(&Vector::new(0., 0., 5.))
-                       * rotation_y(pi/4.) * rotation_x(pi/2.)
-                       * scaling(10., 0.01, 10.));
+                       * rotation_y(pi/4.) * rotation_x(pi/2.));
     wall.set_material(floor_material());
     wall
 }

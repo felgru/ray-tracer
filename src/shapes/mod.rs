@@ -1,4 +1,5 @@
 mod sphere;
+mod plane;
 
 use crate::geometry::{identity, Point, Transform, Vector};
 use crate::material::Material;
@@ -18,6 +19,10 @@ impl Shape {
         Self::new(ShapeTypeMarker::Sphere)
     }
 
+    pub fn plane() -> Self {
+        Self::new(ShapeTypeMarker::Plane)
+    }
+
     pub fn intersect(&self, ray: &Ray) -> Vec<f64> {
         let shape_type = self.get_shape_type();
         self.data.intersect(ray, shape_type)
@@ -31,6 +36,7 @@ impl Shape {
     fn get_shape_type(&self) -> &'static dyn ShapeType {
         match self.shape_type {
             ShapeTypeMarker::Sphere => &sphere::SPHERE,
+            ShapeTypeMarker::Plane => &plane::PLANE,
         }
     }
 
@@ -59,6 +65,7 @@ pub struct ShapeData {
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum ShapeTypeMarker {
     Sphere,
+    Plane,
 }
 
 pub trait ShapeType {
