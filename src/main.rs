@@ -4,7 +4,7 @@ use color::Color;
 use geometry::*;
 use light::PointLight;
 use material::Material;
-use shapes::sphere::Sphere;
+use shapes::Shape;
 use world::World;
 
 fn main() {
@@ -50,53 +50,53 @@ fn floor_material() -> Material {
     m
 }
 
-fn floor() -> Sphere {
-    let mut floor = Sphere::new();
-    floor.transform = scaling(10., 0.01, 10.);
-    floor.material = floor_material();
+fn floor() -> Shape {
+    let mut floor = Shape::sphere();
+    floor.set_transform(scaling(10., 0.01, 10.));
+    floor.set_material(floor_material());
     floor
 }
 
-fn left_wall() -> Sphere {
-    let mut wall = Sphere::new();
+fn left_wall() -> Shape {
+    let mut wall = Shape::sphere();
     let pi = std::f64::consts::PI;
-    wall.transform = translation(&Vector::new(0., 0., 5.))
-                   * rotation_y(-pi/4.) * rotation_x(pi/2.)
-                   * scaling(10., 0.01, 10.);
-    wall.material = floor_material();
+    wall.set_transform(translation(&Vector::new(0., 0., 5.))
+                       * rotation_y(-pi/4.) * rotation_x(pi/2.)
+                       * scaling(10., 0.01, 10.));
+    wall.set_material(floor_material());
     wall
 }
 
-fn right_wall() -> Sphere {
-    let mut wall = Sphere::new();
+fn right_wall() -> Shape {
+    let mut wall = Shape::sphere();
     let pi = std::f64::consts::PI;
-    wall.transform = translation(&Vector::new(0., 0., 5.))
-                   * rotation_y(pi/4.) * rotation_x(pi/2.)
-                   * scaling(10., 0.01, 10.);
-    wall.material = floor_material();
+    wall.set_transform(translation(&Vector::new(0., 0., 5.))
+                       * rotation_y(pi/4.) * rotation_x(pi/2.)
+                       * scaling(10., 0.01, 10.));
+    wall.set_material(floor_material());
     wall
 }
 
-fn middle_sphere() -> Sphere {
-    let mut s = Sphere::new();
-    s.transform = translation(&Vector::new(-0.5, 1., 0.5));
-    s.material = sphere_material(Color::new(0.1, 1., 0.5));
+fn middle_sphere() -> Shape {
+    let mut s = Shape::sphere();
+    s.set_transform(translation(&Vector::new(-0.5, 1., 0.5)));
+    s.set_material(sphere_material(Color::new(0.1, 1., 0.5)));
     s
 }
 
-fn right_sphere() -> Sphere {
-    let mut s = Sphere::new();
-    s.transform = translation(&Vector::new(1.5, 0.5, -0.5))
-                * scaling(0.5, 0.5, 0.5);
-    s.material = sphere_material(Color::new(0.5, 1., 0.1));
+fn right_sphere() -> Shape {
+    let mut s = Shape::sphere();
+    s.set_transform(translation(&Vector::new(1.5, 0.5, -0.5))
+                    * scaling(0.5, 0.5, 0.5));
+    s.set_material(sphere_material(Color::new(0.5, 1., 0.1)));
     s
 }
 
-fn left_sphere() -> Sphere {
-    let mut s = Sphere::new();
-    s.transform = translation(&Vector::new(-1.5, 0.33, -0.75))
-                * scaling(0.33, 0.33, 0.33);
-    s.material = sphere_material(Color::new(1., 0.8, 0.1));
+fn left_sphere() -> Shape {
+    let mut s = Shape::sphere();
+    s.set_transform(translation(&Vector::new(-1.5, 0.33, -0.75))
+                    * scaling(0.33, 0.33, 0.33));
+    s.set_material(sphere_material(Color::new(1., 0.8, 0.1)));
     s
 }
 

@@ -4,10 +4,10 @@ use crate::color::Color;
 use crate::geometry::{Point, Vector};
 use crate::light::PointLight;
 use crate::rays::Ray;
-use crate::shapes::sphere::Sphere;
+use crate::shapes::Shape;
 
 pub struct World {
-    objects: Vec<Sphere>,
+    objects: Vec<Shape>,
     lights: Vec<PointLight>,
 }
 
@@ -19,7 +19,7 @@ impl World {
         }
     }
 
-    pub fn add_object(&mut self, obj: Sphere) -> usize {
+    pub fn add_object(&mut self, obj: Shape) -> usize {
         self.objects.push(obj);
         self.objects.len() - 1
     }
@@ -29,7 +29,7 @@ impl World {
         self.lights.len() - 1
     }
 
-    pub fn get_object(&self, i: usize) -> &Sphere {
+    pub fn get_object(&self, i: usize) -> &Shape {
         &self.objects[i]
     }
 
@@ -62,11 +62,12 @@ impl World {
     }
 
     fn shade_hit(&self, comps: &PreparedComputations) -> Color {
-        let lighting = |l| comps.object.material.lighting(l,
-                                                          &comps.point,
-                                                          &comps.eyev,
-                                                          &comps.normalv,
-                                                          self.is_shadowed(&comps.over_point, l));
+        let lighting = |l| comps.object.get_material()
+                                .lighting(l,
+                                          &comps.point,
+                                          &comps.eyev,
+                                          &comps.normalv,
+                                          self.is_shadowed(&comps.over_point, l));
         self.lights.iter().map(lighting).sum::<Color>()
     }
 
@@ -130,7 +131,7 @@ impl Index<usize> for Intersections {
 
 struct PreparedComputations<'a> {
     pub t: f64,
-    pub object: &'a Sphere,
+    pub object: &'a Shape,
     pub point: Point,
     pub over_point: Point,
     pub eyev: Vector,
@@ -174,15 +175,21 @@ pub fn default_world() -> World {
     let intensity = Color::new(1., 1., 1.);
     let light = PointLight::new(Point::new(-10., 10., -10.),
                                 intensity);
-    let mut s1 = Sphere::new();
-    let c = Color::new(0.8, 1., 0.6);
-    s1.material.color = c;
-    s1.material.diffuse = 0.7;
-    s1.material.specular = 0.2;
-    let mut s2 = Sphere::new();
+    let mut s1 = Shape::sphere();
+    let m = {
+        let c = Color::new(0.8, 1., 0.6);
+        use crate::material::Material;
+        let mut m = Material::new();
+        m.color = c;
+        m.diffuse = 0.7;
+        m.specular = 0.2;
+        m
+    };
+    s1.set_material(m);
+
+    let mut s2 = Shape::sphere();
     use crate::geometry::scaling;
-    let t = scaling(0.5, 0.5, 0.5);
-    s2.transform = t;
+    s2.set_transform(scaling(0.5, 0.5, 0.5));
 
     let mut w = World::new();
     w.add_light(light);
@@ -196,7 +203,7 @@ mod tests {
     use super::*;
 
     use crate::geometry::*;
-    use crate::shapes::sphere::Sphere;
+    use crate::material::Material;
 
     #[test]
     fn intersection_properties() {
@@ -268,8 +275,8 @@ mod tests {
 
         let w = default_world();
         assert_eq!(w.lights[0].intensity, intensity);
-        assert_eq!(w.objects[0].material.color, c);
-        assert_eq!(w.objects[1].transform, t);
+        assert_eq!(w.objects[0].get_material().color, c);
+        assert_eq!(w.objects[1].get_transform(), &t);
     }
 
     #[test]
@@ -288,14 +295,16 @@ mod tests {
     fn precompute_state_of_an_outside_hit() {
         let mut w = default_world();
         let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
-        let mut shape = Sphere::new();
+        let mut shape = Shape::sphere();
         let red = Color::new(1., 0., 0.);
-        shape.material.color = red;
+        let mut m = Material::new();
+        m.color = red;
+        shape.set_material(m);
         let indx = w.add_object(shape);
         let i = Intersection::new(4., indx);
         let comps = w.prepare_computations(&i, &r);
         assert_relative_eq!(comps.t, i.t);
-        assert_eq!(comps.object.material.color, red);
+        assert_eq!(comps.object.get_material().color, red);
         assert_relative_eq!(comps.point, Point::new(0., 0., -1.));
         assert_relative_eq!(comps.eyev, Vector::new(0., 0., -1.));
         assert_relative_eq!(comps.normalv, Vector::new(0., 0., -1.));
@@ -306,14 +315,16 @@ mod tests {
     fn precompute_state_of_an_inside_hit() {
         let mut w = default_world();
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
-        let mut shape = Sphere::new();
+        let mut shape = Shape::sphere();
         let red = Color::new(1., 0., 0.);
-        shape.material.color = red;
+        let mut m = shape.get_material().clone();
+        m.color = red;
+        shape.set_material(m);
         let indx = w.add_object(shape);
         let i = Intersection::new(1., indx);
         let comps = w.prepare_computations(&i, &r);
         assert_relative_eq!(comps.t, i.t);
-        assert_eq!(comps.object.material.color, red);
+        assert_eq!(comps.object.get_material().color, red);
         assert_relative_eq!(comps.point, Point::new(0., 0., 1.));
         assert_relative_eq!(comps.eyev, Vector::new(0., 0., -1.));
         // Normal has been inverted.
@@ -371,15 +382,20 @@ mod tests {
     fn color_whith_intersection_behind_the_ray() {
         let w = {
             let mut w = default_world();
-            let outer = &mut w.objects[0];
-            outer.material.ambient = 1.;
-            let inner = &mut w.objects[1];
-            inner.material.ambient = 1.;
+            set_ambient_of_object(&mut w, 0, 1.);
+            set_ambient_of_object(&mut w, 1, 1.);
             w
         };
         let r = Ray::new(Point::new(0., 0., 0.75), Vector::new(0., 0., -1.));
         let c = w.color_at(&r);
-        assert_relative_eq!(c, w.get_object(1).material.color);
+        assert_relative_eq!(c, w.get_object(1).get_material().color);
+    }
+
+    fn set_ambient_of_object(w: &mut World, i: usize, ambient: f64) {
+        let obj = &mut w.objects[i];
+        let mut m = obj.get_material().clone();
+        m.ambient = ambient;
+        obj.set_material(m);
     }
 
     #[test]
@@ -419,10 +435,10 @@ mod tests {
         let mut w = World::new();
         w.add_light(PointLight::new(Point::new(0., 0., -10.),
                                     Color::new(1., 1., 1.)));
-        let s1 = Sphere::new();
+        let s1 = Shape::sphere();
         w.add_object(s1);
-        let mut s2 = Sphere::new();
-        s2.transform = translation(&Vector::new(0., 0., 10.));
+        let mut s2 = Shape::sphere();
+        s2.set_transform(translation(&Vector::new(0., 0., 10.)));
         w.add_object(s2);
         let r = Ray::new(Point::new(0., 0., 5.), Vector::new(0., 0., 1.));
         let i = Intersection::new(4., 1);
@@ -435,8 +451,8 @@ mod tests {
     fn hit_should_offset_the_point() {
         let w = {
             let mut w = World::new();
-            let mut shape = Sphere::new();
-            shape.transform = translation(&Vector::new(0., 0., 1.));
+            let mut shape = Shape::sphere();
+            shape.set_transform(translation(&Vector::new(0., 0., 1.)));
             w.add_object(shape);
             w
         };

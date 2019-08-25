@@ -1,23 +1,14 @@
-use crate::geometry::{identity, Point, Transform, Vector};
-use crate::material::Material;
+use crate::geometry::{Point, Vector};
 use crate::rays::Ray;
 
-pub struct Sphere {
-    pub transform: Transform,
-    pub material: Material,
-}
+use super::ShapeType;
 
-impl Sphere {
-    pub fn new() -> Self {
-        Sphere{transform: identity(), material: Material::new()}
-    }
+pub struct Sphere {}
 
-    pub fn intersect(&self, ray: &Ray) -> Vec<f64> {
-        let local_ray = ray.transform(&self.transform.inverse());
-        self.local_intersect(&local_ray)
-    }
+pub const SPHERE: Sphere = Sphere{};
 
-    pub fn local_intersect(&self, ray: &Ray) -> Vec<f64> {
+impl ShapeType for Sphere {
+    fn local_intersect(&self, ray: &Ray) -> Vec<f64> {
         let sphere_to_ray: Vector = ray.origin - Point::new(0., 0., 0.);
 
         let a: f64 = ray.direction.dot(&ray.direction);
@@ -35,19 +26,7 @@ impl Sphere {
         }
     }
 
-    pub fn normal_at(&self, point: &Point) -> Vector {
-        let inverse_transform = self.transform.inverse();
-        let local_point = inverse_transform * point;
-        let local_normal = self.local_normal_at(&local_point);
-        use na::{U3};
-        let inv_transp = inverse_transform.to_homogeneous()
-                                          .fixed_slice::<U3,U3>(0, 0)
-                                          .transpose().to_homogeneous();
-        let inv_transp = Transform::from_matrix_unchecked(inv_transp);
-        (inv_transp * local_normal).normalize()
-    }
-
-    pub fn local_normal_at(&self, point: &Point) -> Vector {
+    fn local_normal_at(&self, point: &Point) -> Vector {
         point - Point::new(0., 0., 0.)
     }
 }
@@ -59,8 +38,7 @@ mod tests {
     #[test]
     fn ray_intersecting_sphere_at_two_points() {
         let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
-        let s = Sphere::new();
-        let xs = s.intersect(&r);
+        let xs = SPHERE.local_intersect(&r);
         assert_eq!(xs.len(), 2);
         assert_relative_eq!(xs[0], 4.0);
         assert_relative_eq!(xs[1], 6.0);
@@ -69,8 +47,7 @@ mod tests {
     #[test]
     fn ray_intersecting_sphere_at_a_tangent() {
         let r = Ray::new(Point::new(0., 1., -5.), Vector::new(0., 0., 1.));
-        let s = Sphere::new();
-        let xs = s.intersect(&r);
+        let xs = SPHERE.local_intersect(&r);
         assert_eq!(xs.len(), 2);
         assert_relative_eq!(xs[0], 5.0);
         assert_relative_eq!(xs[1], 5.0);
@@ -79,16 +56,14 @@ mod tests {
     #[test]
     fn ray_missing_sphere() {
         let r = Ray::new(Point::new(0., 2., -5.), Vector::new(0., 0., 1.));
-        let s = Sphere::new();
-        let xs = s.intersect(&r);
+        let xs = SPHERE.local_intersect(&r);
         assert_eq!(xs.len(), 0);
     }
 
     #[test]
     fn ray_originating_inside_sphere() {
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
-        let s = Sphere::new();
-        let xs = s.intersect(&r);
+        let xs = SPHERE.local_intersect(&r);
         assert_eq!(xs.len(), 2);
         assert_relative_eq!(xs[0], -1.0);
         assert_relative_eq!(xs[1],  1.0);
@@ -97,110 +72,34 @@ mod tests {
     #[test]
     fn ray_originating_behind_sphere() {
         let r = Ray::new(Point::new(0., 0., 5.), Vector::new(0., 0., 1.));
-        let s = Sphere::new();
-        let xs = s.intersect(&r);
+        let xs = SPHERE.local_intersect(&r);
         assert_eq!(xs.len(), 2);
         assert_relative_eq!(xs[0], -6.0);
         assert_relative_eq!(xs[1], -4.0);
     }
 
     #[test]
-    fn default_transformation_of_a_sphere() {
-        let s = Sphere::new();
-        assert_relative_eq!(s.transform, identity());
-    }
-
-    #[test]
-    fn changing_transformation_of_a_sphere() {
-        let mut s = Sphere::new();
-        use crate::geometry::translation;
-        let m = translation(&Vector::new(2., 3., 4.));
-        s.transform = m;
-        assert_relative_eq!(s.transform, m);
-    }
-
-    #[test]
-    fn intersecting_scaled_sphere_with_a_ray() {
-        let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
-        let mut s = Sphere::new();
-        use crate::geometry::scaling;
-        s.transform = scaling(2., 2., 2.);
-        let xs = s.intersect(&r);
-        assert_eq!(xs.len(), 2);
-        assert_relative_eq!(xs[0], 3.0);
-        assert_relative_eq!(xs[1], 7.0);
-    }
-
-    #[test]
-    fn intersecting_translated_sphere_with_a_ray() {
-        let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
-        let mut s = Sphere::new();
-        use crate::geometry::translation;
-        s.transform = translation(&Vector::new(5., 0., 0.));
-        let xs = s.intersect(&r);
-        assert_eq!(xs.len(), 0);
-    }
-
-    #[test]
     fn normal_of_sphere_on_x_axis() {
-        let s = Sphere::new();
-        let n = s.normal_at(&Point::new(1., 0., 0.));
+        let n = SPHERE.local_normal_at(&Point::new(1., 0., 0.));
         assert_relative_eq!(n, Vector::new(1., 0., 0.));
     }
 
     #[test]
     fn normal_of_sphere_on_y_axis() {
-        let s = Sphere::new();
-        let n = s.normal_at(&Point::new(0., 1., 0.));
+        let n = SPHERE.local_normal_at(&Point::new(0., 1., 0.));
         assert_relative_eq!(n, Vector::new(0., 1., 0.));
     }
 
     #[test]
     fn normal_of_sphere_on_z_axis() {
-        let s = Sphere::new();
-        let n = s.normal_at(&Point::new(0., 0., 1.));
+        let n = SPHERE.local_normal_at(&Point::new(0., 0., 1.));
         assert_relative_eq!(n, Vector::new(0., 0., 1.));
     }
 
     #[test]
     fn normal_of_sphere_at_nonaxial_point() {
-        let s = Sphere::new();
         let x = 1./f64::sqrt(3.);
-        let n = s.normal_at(&Point::new(x, x, x));
+        let n = SPHERE.local_normal_at(&Point::new(x, x, x));
         assert_relative_eq!(n, Vector::new(x, x, x));
-    }
-
-    #[test]
-    fn normal_of_translated_sphere() {
-        let mut s = Sphere::new();
-        use crate::geometry::translation;
-        s.transform = translation(&Vector::new(0., 1., 0.));
-        let n = s.normal_at(&Point::new(0., 1.70711, -0.70711));
-        assert_relative_eq!(n, Vector::new(0., 0.70711, -0.70711), max_relative = 1e-5);
-    }
-
-    #[test]
-    fn normal_of_transformed_sphere() {
-        let mut s = Sphere::new();
-        use crate::geometry::{scaling, rotation_z};
-        s.transform = scaling(1., 0.5, 1.) * rotation_z(std::f64::consts::PI/5.);
-        let x = 1./f64::sqrt(2.);
-        let n = s.normal_at(&Point::new(0., x, -x));
-        assert_relative_eq!(n, Vector::new(0., 0.97014, -0.24254), max_relative = 1e-4);
-    }
-
-    #[test]
-    fn default_sphere_material() {
-        let s = Sphere::new();
-        assert_eq!(s.material, Material::new());
-    }
-
-    #[test]
-    fn assign_material_to_sphere() {
-        let mut s = Sphere::new();
-        let mut m = Material::new();
-        m.ambient = 1.;
-        s.material = m;
-        assert_eq!(s.material, m);
     }
 }
