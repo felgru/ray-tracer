@@ -18,7 +18,7 @@ mod tests {
 
     #[test]
     fn point_light_defaults() {
-        let intensity = Color::new(1., 1., 1.);
+        let intensity = Color::white();
         let position = Point::new(0., 0., 0.);
         let light = PointLight::new(position, intensity);
         assert_eq!(light.position, position);

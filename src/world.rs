@@ -1,7 +1,7 @@
 use std::ops::Index;
 
 use crate::color::Color;
-use crate::geometry::{Point, Vector};
+use crate::geometry::{Point, reflect, Vector};
 use crate::light::PointLight;
 use crate::rays::Ray;
 use crate::shapes::Shape;
@@ -37,12 +37,12 @@ impl World {
         &self.lights[i]
     }
 
-    pub fn color_at(&self, ray: &Ray) -> Color {
+    pub fn color_at(&self, ray: &Ray, remaining: usize) -> Color {
         let is = self.intersect(ray);
         match is.hit() {
             Some(i) => {
                 let comps = self.prepare_computations(&i, ray);
-                self.shade_hit(&comps)
+                self.shade_hit(&comps, remaining)
             },
             None => Color::black(),
         }
@@ -61,14 +61,31 @@ impl World {
         PreparedComputations::new(self, intersection, ray)
     }
 
-    fn shade_hit(&self, comps: &PreparedComputations) -> Color {
+    fn shade_hit(&self, comps: &PreparedComputations,
+                 remaining: usize) -> Color {
         let lighting = |l| comps.object.get_material()
                                 .lighting(l,
                                           &comps.point,
                                           &comps.eyev,
                                           &comps.normalv,
                                           self.is_shadowed(&comps.over_point, l));
-        self.lights.iter().map(lighting).sum::<Color>()
+        let surface = self.lights.iter().map(lighting).sum::<Color>();
+        let reflected = self.reflected_color(comps, remaining);
+
+        surface + reflected
+    }
+
+    fn reflected_color(&self, comps: &PreparedComputations,
+                       remaining: usize) -> Color {
+        let reflectivity = comps.object.get_material().reflective;
+        if remaining <= 0 || reflectivity == 0. {
+            return Color::black();
+        }
+
+        let reflect_ray = Ray::new(comps.over_point, comps.reflectv);
+        let color = self.color_at(&reflect_ray, remaining - 1);
+
+        color * reflectivity
     }
 
     fn is_shadowed(&self, point: &Point, light: &PointLight) -> bool {
@@ -136,6 +153,7 @@ struct PreparedComputations<'a> {
     pub over_point: Point,
     pub eyev: Vector,
     pub normalv: Vector,
+    pub reflectv: Vector,
     pub inside: bool,
 }
 
@@ -161,6 +179,7 @@ impl<'a> PreparedComputations<'a> {
             over_point: over_point,
             eyev: eyev,
             normalv: normalv,
+            reflectv: reflect(&ray.direction, &normalv),
             inside: inside,
         }
     }
@@ -172,7 +191,7 @@ impl<'a> PreparedComputations<'a> {
 
 #[cfg(test)]
 pub fn default_world() -> World {
-    let intensity = Color::new(1., 1., 1.);
+    let intensity = Color::white();
     let light = PointLight::new(Point::new(-10., 10., -10.),
                                 intensity);
     let mut s1 = Shape::sphere();
@@ -268,7 +287,7 @@ mod tests {
 
     #[test]
     fn let_there_be_light() {
-        let intensity = Color::new(1., 1., 1.);
+        let intensity = Color::white();
         let c = Color::new(0.8, 1., 0.6);
         use crate::geometry::scaling;
         let t = scaling(0.5, 0.5, 0.5);
@@ -338,7 +357,7 @@ mod tests {
         let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
         let i = Intersection::new(4., 0);
         let comps = w.prepare_computations(&i, &r);
-        let c = w.shade_hit(&comps);
+        let c = w.shade_hit(&comps, 4);
         let expected = Color::new(0.38066119308103435,
                                   0.47582649135129296,
                                   0.28549589481077575);
@@ -349,11 +368,11 @@ mod tests {
     fn shading_an_intersection_from_the_inside() {
         let mut w = default_world();
         w.lights[0] = PointLight::new(Point::new(0., 0.25, 0.),
-                                      Color::new(1., 1., 1.));
+                                      Color::white());
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
         let i = Intersection::new(0.5, 1);
         let comps = w.prepare_computations(&i, &r);
-        let c = w.shade_hit(&comps);
+        let c = w.shade_hit(&comps, 4);
         let intensity = 0.9049844720832575;
         let expected = Color::new(intensity, intensity, intensity);
         assert_relative_eq!(c, expected);
@@ -363,7 +382,7 @@ mod tests {
     fn color_when_ray_misses() {
         let w = default_world();
         let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 1., 0.));
-        let c = w.color_at(&r);
+        let c = w.color_at(&r, 4);
         assert_eq!(c, Color::black());
     }
 
@@ -371,7 +390,7 @@ mod tests {
     fn color_when_ray_hits() {
         let w = default_world();
         let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
-        let c = w.color_at(&r);
+        let c = w.color_at(&r, 4);
         let expected = Color::new(0.38066119308103435,
                                   0.47582649135129296,
                                   0.28549589481077575);
@@ -387,7 +406,7 @@ mod tests {
             w
         };
         let r = Ray::new(Point::new(0., 0., 0.75), Vector::new(0., 0., -1.));
-        let c = w.color_at(&r);
+        let c = w.color_at(&r, 4);
         assert_relative_eq!(c, w.get_object(1).get_material().color);
     }
 
@@ -434,7 +453,7 @@ mod tests {
     fn shade_hit_is_given_an_intersection_in_shadow() {
         let mut w = World::new();
         w.add_light(PointLight::new(Point::new(0., 0., -10.),
-                                    Color::new(1., 1., 1.)));
+                                    Color::white()));
         let s1 = Shape::sphere();
         w.add_object(s1);
         let mut s2 = Shape::sphere();
@@ -443,7 +462,7 @@ mod tests {
         let r = Ray::new(Point::new(0., 0., 5.), Vector::new(0., 0., 1.));
         let i = Intersection::new(4., 1);
         let comps = w.prepare_computations(&i, &r);
-        let c = w.shade_hit(&comps);
+        let c = w.shade_hit(&comps, 4);
         assert_relative_eq!(c, Color::new(0.1, 0.1, 0.1));
     }
 
@@ -462,5 +481,104 @@ mod tests {
         let eps = PreparedComputations::over_point_eps();
         assert!(comps.over_point[2] < -eps/2.);
         assert!(comps.point[2] > comps.over_point[2]);
+    }
+
+    #[test]
+    fn precomputing_the_reflection_vector() {
+        let mut w = World::new();
+        w.add_object(Shape::plane());
+        let sqrt2 = f64::sqrt(2.);
+        let r = Ray::new(Point::new(0., 1., -1.),
+                         Vector::new(0., -1./sqrt2, 1./sqrt2));
+        let i = Intersection::new(sqrt2, 0);
+        let comps = w.prepare_computations(&i, &r);
+        assert_relative_eq!(comps.reflectv,
+                            Vector::new(0., 1./sqrt2, 1./sqrt2));
+    }
+
+    #[test]
+    fn reflected_color_of_a_nonreflective_material() {
+        let mut w = default_world();
+        set_ambient_of_object(&mut w, 1, 1.);
+        let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
+        let i = Intersection::new(1., 1);
+        let comps = w.prepare_computations(&i, &r);
+        let color = w.reflected_color(&comps, 4);
+        assert_eq!(color, Color::black());
+    }
+
+    #[test]
+    fn reflected_color_of_a_reflective_material() {
+        let mut w = default_world();
+        let mut shape = Shape::plane();
+        let mut m = Material::new();
+        m.reflective = 0.5;
+        shape.set_material(m);
+        shape.set_transform(translation(&Vector::new(0., -1., 0.)));
+        w.add_object(shape);
+        let sqrt2 = f64::sqrt(2.);
+        let r = Ray::new(Point::new(0., 0., -3.),
+                         Vector::new(0., -1./sqrt2, 1./sqrt2));
+        let i = Intersection::new(sqrt2, 2);
+        let comps = w.prepare_computations(&i, &r);
+        let color = w.reflected_color(&comps, 4);
+        let expected = Color::new(0.19032, 0.2379, 0.14274);
+        assert_relative_eq!(color, expected, max_relative = 1e-4);
+    }
+
+    #[test]
+    fn reflected_color_at_maximum_recursion_depth() {
+        let mut w = default_world();
+        let mut shape = Shape::plane();
+        let mut m = Material::new();
+        m.reflective = 0.5;
+        shape.set_material(m);
+        shape.set_transform(translation(&Vector::new(0., -1., 0.)));
+        w.add_object(shape);
+        let sqrt2 = f64::sqrt(2.);
+        let r = Ray::new(Point::new(0., 0., -3.),
+                         Vector::new(0., -1./sqrt2, 1./sqrt2));
+        let i = Intersection::new(sqrt2, 2);
+        let comps = w.prepare_computations(&i, &r);
+        let color = w.reflected_color(&comps, 0);
+        assert_eq!(color, Color::black());
+    }
+
+    #[test]
+    fn shade_hit_with_a_reflective_material() {
+        let mut w = default_world();
+        let mut shape = Shape::plane();
+        let mut m = Material::new();
+        m.reflective = 0.5;
+        shape.set_material(m);
+        shape.set_transform(translation(&Vector::new(0., -1., 0.)));
+        w.add_object(shape);
+        let sqrt2 = f64::sqrt(2.);
+        let r = Ray::new(Point::new(0., 0., -3.),
+                         Vector::new(0., -1./sqrt2, 1./sqrt2));
+        let i = Intersection::new(sqrt2, 2);
+        let comps = w.prepare_computations(&i, &r);
+        let color = w.shade_hit(&comps, 4);
+        let expected = Color::new(0.87677, 0.92436, 0.82918);
+        assert_relative_eq!(color, expected, max_relative = 1e-4);
+    }
+
+    #[test]
+    fn terminiation_in_case_of_infinite_reflection() {
+        let mut w = World::new();
+        let light = PointLight::new(Point::new(0., 0., 0.), Color::white());
+        w.add_light(light);
+        let mut m = Material::new();
+        m.reflective = 1.;
+        let mut lower = Shape::plane();
+        lower.set_material(m.clone());
+        lower.set_transform(translation(&Vector::new(0., -1., 0.)));
+        w.add_object(lower);
+        let mut upper = Shape::plane();
+        upper.set_material(m.clone());
+        upper.set_transform(translation(&Vector::new(0., 1., 0.)));
+        w.add_object(upper);
+        let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 1., 0.));
+        let _ = w.color_at(&r, 4); // should terminate successfully
     }
 }

@@ -27,7 +27,11 @@ fn define_camera() -> Camera {
 fn define_world() -> World {
     let mut world = World::new();
 
-    world.add_object(floor());
+    let mut floor = floor();
+    let mut floor_material = floor_material();
+    floor_material.reflective = 0.5;
+    floor.set_material(floor_material);
+    world.add_object(floor);
     world.add_object(left_wall());
     world.add_object(right_wall());
 
@@ -36,7 +40,7 @@ fn define_world() -> World {
     world.add_object(left_sphere());
 
     let light_position = Point::new(-10., 10., -10.);
-    let light_color    = Color::new(1., 1., 1.);
+    let light_color    = Color::white();
     let light          = PointLight::new(light_position, light_color);
 
     world.add_light(light);

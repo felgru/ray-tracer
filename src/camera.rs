@@ -35,11 +35,13 @@ impl Camera {
     pub fn render(&self, world: &World) -> Canvas {
         let mut canvas = Canvas::new(self.hsize, self.vsize);
 
+        let max_reflection = 5;
+
         // for each row
         for y in 0..self.vsize {
             for x in 0..self.hsize {
                 let ray = self.ray_for_pixel(x, y);
-                let color = world.color_at(&ray);
+                let color = world.color_at(&ray, max_reflection);
                 canvas.write_pixel(x, y, color);
             }
         }

@@ -9,16 +9,18 @@ pub struct Material {
     pub diffuse: f64,
     pub specular: f64,
     pub shininess: f64,
+    pub reflective: f64,
 }
 
 impl Material {
     pub fn new() -> Self {
         Material {
-            color: Color::new(1., 1., 1.),
+            color: Color::white(),
             ambient: 0.1,
             diffuse: 0.9,
             specular: 0.9,
             shininess: 200.,
+            reflective: 0.0,
         }
     }
 
@@ -60,7 +62,7 @@ mod tests {
     #[test]
     fn default_material() {
         let m = Material::new();
-        assert_eq!(m.color, Color::new(1., 1., 1.));
+        assert_eq!(m.color, Color::white());
         assert_eq!(m.ambient, 0.1);
         assert_eq!(m.diffuse, 0.9);
         assert_eq!(m.specular, 0.9);
@@ -73,11 +75,11 @@ mod tests {
         let position = Point::new(0., 0., 0.);
         let eyev = Vector::new(0., 0., -1.);
         let normalv = Vector::new(0., 0., -1.);
-        let light = PointLight::new(Point::new(0., 0., -10.), Color::new(1., 1., 1.));
+        let light = PointLight::new(Point::new(0., 0., -10.), Color::white());
         let in_shadow = false;
         let result = m.lighting(&light, &position, &eyev, &normalv, in_shadow);
         let intensity = 1.9;
-        assert_relative_eq!(result, Color::new(intensity, intensity, intensity));
+        assert_relative_eq!(result, Color::white() * intensity);
     }
 
     #[test]
@@ -87,11 +89,11 @@ mod tests {
         let x = 1./f64::sqrt(2.);
         let eyev = Vector::new(0., x, -x);
         let normalv = Vector::new(0., 0., -1.);
-        let light = PointLight::new(Point::new(0., 0., -10.), Color::new(1., 1., 1.));
+        let light = PointLight::new(Point::new(0., 0., -10.), Color::white());
         let in_shadow = false;
         let result = m.lighting(&light, &position, &eyev, &normalv, in_shadow);
         let intensity = 1.0;
-        assert_relative_eq!(result, Color::new(intensity, intensity, intensity));
+        assert_relative_eq!(result, Color::white() * intensity);
     }
 
     #[test]
@@ -100,11 +102,11 @@ mod tests {
         let position = Point::new(0., 0., 0.);
         let eyev = Vector::new(0., 0., -1.);
         let normalv = Vector::new(0., 0., -1.);
-        let light = PointLight::new(Point::new(0., 10., -10.), Color::new(1., 1., 1.));
+        let light = PointLight::new(Point::new(0., 10., -10.), Color::white());
         let in_shadow = false;
         let result = m.lighting(&light, &position, &eyev, &normalv, in_shadow);
         let intensity = 0.1 + 0.9 * 1./f64::sqrt(2.) + 0.; // approximately 0.7364
-        assert_relative_eq!(result, Color::new(intensity, intensity, intensity));
+        assert_relative_eq!(result, Color::white() * intensity);
     }
 
     #[test]
@@ -114,11 +116,11 @@ mod tests {
         let x = 1./f64::sqrt(2.);
         let eyev = Vector::new(0., -x, -x);
         let normalv = Vector::new(0., 0., -1.);
-        let light = PointLight::new(Point::new(0., 10., -10.), Color::new(1., 1., 1.));
+        let light = PointLight::new(Point::new(0., 10., -10.), Color::white());
         let in_shadow = false;
         let result = m.lighting(&light, &position, &eyev, &normalv, in_shadow);
         let intensity = 0.1 + 0.9 * x + 0.9; // approximately 1.6364
-        assert_relative_eq!(result, Color::new(intensity, intensity, intensity), max_relative = 1e-12);
+        assert_relative_eq!(result, Color::white() * intensity, max_relative = 1e-12);
     }
 
     #[test]
@@ -127,11 +129,11 @@ mod tests {
         let position = Point::new(0., 0., 0.);
         let eyev = Vector::new(0., 0., -1.);
         let normalv = Vector::new(0., 0., -1.);
-        let light = PointLight::new(Point::new(0., 0., 10.), Color::new(1., 1., 1.));
+        let light = PointLight::new(Point::new(0., 0., 10.), Color::white());
         let in_shadow = false;
         let result = m.lighting(&light, &position, &eyev, &normalv, in_shadow);
         let intensity = 0.1;
-        assert_relative_eq!(result, Color::new(intensity, intensity, intensity));
+        assert_relative_eq!(result, Color::white() * intensity);
     }
 
     #[test]
@@ -140,10 +142,16 @@ mod tests {
         let position = Point::new(0., 0., 0.);
         let eyev = Vector::new(0., 0., -1.);
         let normalv = Vector::new(0., 0., -1.);
-        let light = PointLight::new(Point::new(0., 0., -10.), Color::new(1., 1., 1.));
+        let light = PointLight::new(Point::new(0., 0., -10.), Color::white());
         let in_shadow = true;
         let result = m.lighting(&light, &position, &eyev, &normalv, in_shadow);
         let intensity = 0.1;
-        assert_relative_eq!(result, Color::new(intensity, intensity, intensity));
+        assert_relative_eq!(result, Color::white() * intensity);
+    }
+
+    #[test]
+    fn reflectivity_of_default_material() {
+        let m = Material::new();
+        assert_eq!(m.reflective, 0.0);
     }
 }

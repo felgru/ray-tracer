@@ -21,6 +21,10 @@ impl Color {
         Color::new(0., 0., 0.)
     }
 
+    pub fn white() -> Self {
+        Color::new(1., 1., 1.)
+    }
+
     pub fn clamp(self) -> Self {
         Color {
             red: Self::clamp_component(self.red),
