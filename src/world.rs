@@ -63,7 +63,7 @@ impl World {
 
     fn shade_hit(&self, comps: &PreparedComputations,
                  remaining: usize) -> Color {
-        let lighting = |l| comps.object.get_material()
+        let lighting = |l| comps.object
                                 .lighting(l,
                                           &comps.point,
                                           &comps.eyev,
@@ -77,7 +77,7 @@ impl World {
 
     fn reflected_color(&self, comps: &PreparedComputations,
                        remaining: usize) -> Color {
-        let reflectivity = comps.object.get_material().reflective;
+        let reflectivity = comps.object.get_material().shader.reflective;
         if remaining <= 0 || reflectivity == 0. {
             return Color::black();
         }
@@ -201,8 +201,8 @@ pub fn default_world() -> World {
         let mut m = Material::new();
         use crate::patterns::Pattern;
         m.pattern = Pattern::uniform(c);
-        m.diffuse = 0.7;
-        m.specular = 0.2;
+        m.shader.diffuse = 0.7;
+        m.shader.specular = 0.2;
         m
     };
     s1.set_material(m);
@@ -415,7 +415,7 @@ mod tests {
     fn set_ambient_of_object(w: &mut World, i: usize, ambient: f64) {
         let obj = &mut w.objects[i];
         let mut m = obj.get_material().clone();
-        m.ambient = ambient;
+        m.shader.ambient = ambient;
         obj.set_material(m);
     }
 
@@ -514,7 +514,7 @@ mod tests {
         let mut w = default_world();
         let mut shape = Shape::plane();
         let mut m = Material::new();
-        m.reflective = 0.5;
+        m.shader.reflective = 0.5;
         shape.set_material(m);
         shape.set_transform(translation(&Vector::new(0., -1., 0.)));
         w.add_object(shape);
@@ -533,7 +533,7 @@ mod tests {
         let mut w = default_world();
         let mut shape = Shape::plane();
         let mut m = Material::new();
-        m.reflective = 0.5;
+        m.shader.reflective = 0.5;
         shape.set_material(m);
         shape.set_transform(translation(&Vector::new(0., -1., 0.)));
         w.add_object(shape);
@@ -551,7 +551,7 @@ mod tests {
         let mut w = default_world();
         let mut shape = Shape::plane();
         let mut m = Material::new();
-        m.reflective = 0.5;
+        m.shader.reflective = 0.5;
         shape.set_material(m);
         shape.set_transform(translation(&Vector::new(0., -1., 0.)));
         w.add_object(shape);
@@ -571,7 +571,7 @@ mod tests {
         let light = PointLight::new(Point::new(0., 0., 0.), Color::white());
         w.add_light(light);
         let mut m = Material::new();
-        m.reflective = 1.;
+        m.shader.reflective = 1.;
         let mut lower = Shape::plane();
         lower.set_material(m.clone());
         lower.set_transform(translation(&Vector::new(0., -1., 0.)));

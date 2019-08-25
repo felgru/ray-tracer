@@ -30,7 +30,7 @@ fn define_world() -> World {
 
     let mut floor = floor();
     let mut floor_material = floor_material();
-    floor_material.reflective = 0.5;
+    floor_material.shader.reflective = 0.5;
     floor.set_material(floor_material);
     world.add_object(floor);
     world.add_object(left_wall());
@@ -51,7 +51,7 @@ fn define_world() -> World {
 fn floor_material() -> Material {
     let mut m = Material::new();
     m.pattern = Pattern::stripes(Color::new(1., 0.9, 0.9), Color::new(0.8, 0.4, 0.4));
-    m.specular = 0.;
+    m.shader.specular = 0.;
     m
 }
 
@@ -105,7 +105,7 @@ fn left_sphere() -> Shape {
 fn sphere_material(color: Color) -> Material {
     let mut m = Material::new();
     m.pattern = Pattern::stripes(color, color * 0.5);
-    m.diffuse = 0.7;
-    m.specular = 0.3;
+    m.shader.diffuse = 0.7;
+    m.shader.specular = 0.3;
     m
 }

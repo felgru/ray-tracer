@@ -1,8 +1,9 @@
 mod sphere;
 mod plane;
 
-use crate::geometry::{identity, Point, Transform, Vector};
 use crate::color::Color;
+use crate::geometry::{identity, Point, Transform, Vector};
+use crate::light::PointLight;
 use crate::material::Material;
 use crate::rays::Ray;
 
@@ -39,6 +40,14 @@ impl Shape {
         let object_point  = self.get_transform().inverse() * point;
         let pattern_point = pattern.transform.inverse() * object_point;
         pattern.local_color_at(&pattern_point)
+    }
+
+    pub fn lighting(&self, light: &PointLight,
+                    position: &Point, eyev: &Vector, normalv: &Vector,
+                    in_shadow: bool) -> Color {
+        let color = self.color_at(position);
+        let shader = self.get_material().shader;
+        shader.lighting(color, light, position, eyev, normalv, in_shadow)
     }
 
     fn get_shape_type(&self) -> &'static dyn ShapeType {
@@ -177,7 +186,7 @@ mod tests {
     fn assign_material_to_sphere() {
         let mut s = Shape::sphere();
         let mut m = Material::new();
-        m.ambient = 1.;
+        m.shader.ambient = 1.;
         s.set_material(m);
         assert_eq!(s.get_material(), &m);
     }
@@ -217,5 +226,25 @@ mod tests {
         let mut material = object.get_material().clone();
         material.pattern = pattern;
         object.set_material(material);
+    }
+
+    #[test]
+    fn lighting_with_stripe_pattern() {
+        let mut m = Material::new();
+        m.pattern = Pattern::stripes(Color::white(), Color::black());
+        m.shader.ambient = 1.;
+        m.shader.diffuse = 0.;
+        m.shader.specular = 0.;
+        let mut obj = Shape::sphere();
+        obj.set_material(m);
+        let eyev = Vector::new(0., 0., -1.);
+        let normalv = Vector::new(0., 0., -1.);
+        let light = PointLight::new(Point::new(0., 0., -10.), Color::white());
+        let c1 = obj.lighting(&light, &Point::new(0.9, 0., 0.),
+                              &eyev, &normalv, false);
+        let c2 = obj.lighting(&light, &Point::new(1.1, 0., 0.),
+                              &eyev, &normalv, false);
+        assert_relative_eq!(c1, Color::white());
+        assert_relative_eq!(c2, Color::black());
     }
 }
