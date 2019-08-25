@@ -3,7 +3,7 @@ use std::ops::Add;
 use std::ops::Sub;
 use std::ops::Mul;
 
-use crate::float::Approx;
+use approx::{AbsDiffEq, RelativeEq};
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Color {
@@ -97,20 +97,36 @@ impl Mul<f64> for Color {
     }
 }
 
-impl Approx for Color {
-    fn approx(self, rhs: Self, eps: f64) -> bool {
-        self.red.approx(rhs.red, eps)
-            && self.green.approx(rhs.green, eps)
-            && self.blue.approx(rhs.blue, eps)
+impl AbsDiffEq for Color {
+    type Epsilon = <f64 as AbsDiffEq>::Epsilon;
+
+    fn default_epsilon() -> Self::Epsilon {
+        f64::default_epsilon()
+    }
+
+    fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
+        f64::abs_diff_eq(&self.red, &other.red, epsilon) &&
+        f64::abs_diff_eq(&self.green, &other.green, epsilon) &&
+        f64::abs_diff_eq(&self.blue, &other.blue, epsilon)
+    }
+}
+
+impl RelativeEq for Color {
+    fn default_max_relative() -> Self::Epsilon {
+        f64::default_max_relative()
+    }
+
+    fn relative_eq(&self, other: &Self, epsilon: Self::Epsilon,
+                   max_relative: Self::Epsilon) -> bool {
+        f64::relative_eq(&self.red, &other.red, epsilon, max_relative) &&
+        f64::relative_eq(&self.green, &other.green, epsilon, max_relative) &&
+        f64::relative_eq(&self.blue, &other.blue, epsilon, max_relative)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assert_approx;
-
-    const EPS: f64 = 1e-8;
 
     #[test]
     fn color_values() {
@@ -132,14 +148,14 @@ mod tests {
     fn add_colors() {
         let c1 = Color::new(0.9, 0.6, 0.75);
         let c2 = Color::new(0.7, 0.1, 0.25);
-        assert_approx!(c1 + c2, Color::new(1.6, 0.7, 1.0), EPS);
+        assert_relative_eq!(c1 + c2, Color::new(1.6, 0.7, 1.0));
     }
 
     #[test]
     fn subtract_colors() {
         let c1 = Color::new(0.9, 0.6, 0.75);
         let c2 = Color::new(0.7, 0.1, 0.25);
-        assert_approx!(c1 - c2, Color::new(0.2, 0.5, 0.5), EPS);
+        assert_relative_eq!(c1 - c2, Color::new(0.2, 0.5, 0.5));
     }
 
     #[test]
@@ -152,6 +168,6 @@ mod tests {
     fn multiply_colors() {
         let c1 = Color::new(1., 0.2, 0.4);
         let c2 = Color::new(0.9, 1., 0.1);
-        assert_approx!(c1 * c2, Color::new(0.9, 0.2, 0.04), EPS);
+        assert_relative_eq!(c1 * c2, Color::new(0.9, 0.2, 0.04));
     }
 }

@@ -55,10 +55,6 @@ impl Material {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assert_approx;
-    use crate::float::Approx;
-
-    const EPS: f64 = 1e-8;
 
     #[test]
     fn default_material() {
@@ -79,7 +75,7 @@ mod tests {
         let light = PointLight::new(Point::new(0., 0., -10.), Color::new(1., 1., 1.));
         let result = m.lighting(&light, &position, &eyev, &normalv);
         let intensity = 1.9;
-        assert_approx!(result, Color::new(intensity, intensity, intensity), EPS);
+        assert_relative_eq!(result, Color::new(intensity, intensity, intensity));
     }
 
     #[test]
@@ -92,7 +88,7 @@ mod tests {
         let light = PointLight::new(Point::new(0., 0., -10.), Color::new(1., 1., 1.));
         let result = m.lighting(&light, &position, &eyev, &normalv);
         let intensity = 1.0;
-        assert_approx!(result, Color::new(intensity, intensity, intensity), EPS);
+        assert_relative_eq!(result, Color::new(intensity, intensity, intensity));
     }
 
     #[test]
@@ -104,7 +100,7 @@ mod tests {
         let light = PointLight::new(Point::new(0., 10., -10.), Color::new(1., 1., 1.));
         let result = m.lighting(&light, &position, &eyev, &normalv);
         let intensity = 0.1 + 0.9 * 1./f64::sqrt(2.) + 0.; // approximately 0.7364
-        assert_approx!(result, Color::new(intensity, intensity, intensity), EPS);
+        assert_relative_eq!(result, Color::new(intensity, intensity, intensity));
     }
 
     #[test]
@@ -117,7 +113,7 @@ mod tests {
         let light = PointLight::new(Point::new(0., 10., -10.), Color::new(1., 1., 1.));
         let result = m.lighting(&light, &position, &eyev, &normalv);
         let intensity = 0.1 + 0.9 * x + 0.9; // approximately 1.6364
-        assert_approx!(result, Color::new(intensity, intensity, intensity), EPS);
+        assert_relative_eq!(result, Color::new(intensity, intensity, intensity), max_relative = 1e-12);
     }
 
     #[test]
@@ -129,6 +125,6 @@ mod tests {
         let light = PointLight::new(Point::new(0., 0., 10.), Color::new(1., 1., 1.));
         let result = m.lighting(&light, &position, &eyev, &normalv);
         let intensity = 0.1;
-        assert_approx!(result, Color::new(intensity, intensity, intensity), EPS);
+        assert_relative_eq!(result, Color::new(intensity, intensity, intensity));
     }
 }

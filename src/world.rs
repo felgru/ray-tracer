@@ -149,10 +149,6 @@ impl<'a> PreparedComputations<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assert_approx;
-    use crate::float::Approx;
-
-    const EPS: f64 = 1e-8;
 
     use crate::shapes::sphere::Sphere;
 
@@ -273,11 +269,11 @@ mod tests {
         let indx = w.add_object(shape);
         let i = Intersection::new(4., indx);
         let comps = w.prepare_computations(&i, &r);
-        assert_approx!(comps.t, i.t, EPS);
+        assert_relative_eq!(comps.t, i.t);
         assert_eq!(comps.object.material.color, red);
-        assert_approx!(comps.point, Point::new(0., 0., -1.), EPS);
-        assert_approx!(comps.eyev, Vector::new(0., 0., -1.), EPS);
-        assert_approx!(comps.normalv, Vector::new(0., 0., -1.), EPS);
+        assert_relative_eq!(comps.point, Point::new(0., 0., -1.));
+        assert_relative_eq!(comps.eyev, Vector::new(0., 0., -1.));
+        assert_relative_eq!(comps.normalv, Vector::new(0., 0., -1.));
         assert_eq!(comps.inside, false);
     }
 
@@ -291,12 +287,12 @@ mod tests {
         let indx = w.add_object(shape);
         let i = Intersection::new(1., indx);
         let comps = w.prepare_computations(&i, &r);
-        assert_approx!(comps.t, i.t, EPS);
+        assert_relative_eq!(comps.t, i.t);
         assert_eq!(comps.object.material.color, red);
-        assert_approx!(comps.point, Point::new(0., 0., 1.), EPS);
-        assert_approx!(comps.eyev, Vector::new(0., 0., -1.), EPS);
+        assert_relative_eq!(comps.point, Point::new(0., 0., 1.));
+        assert_relative_eq!(comps.eyev, Vector::new(0., 0., -1.));
         // Normal has been inverted.
-        assert_approx!(comps.normalv, Vector::new(0., 0., -1.), EPS);
+        assert_relative_eq!(comps.normalv, Vector::new(0., 0., -1.));
         assert_eq!(comps.inside, true);
     }
 
@@ -310,7 +306,7 @@ mod tests {
         let expected = Color::new(0.38066119308103435,
                                   0.47582649135129296,
                                   0.28549589481077575);
-        assert_approx!(c, expected, EPS);
+        assert_relative_eq!(c, expected);
     }
 
     #[test]
@@ -324,7 +320,7 @@ mod tests {
         let c = w.shade_hit(&comps);
         let intensity = 0.9049844720832575;
         let expected = Color::new(intensity, intensity, intensity);
-        assert_approx!(c, expected, EPS);
+        assert_relative_eq!(c, expected);
     }
 
     #[test]
@@ -343,7 +339,7 @@ mod tests {
         let expected = Color::new(0.38066119308103435,
                                   0.47582649135129296,
                                   0.28549589481077575);
-        assert_approx!(c, expected, EPS);
+        assert_relative_eq!(c, expected);
     }
 
     #[test]
@@ -358,6 +354,6 @@ mod tests {
         };
         let r = Ray::new(Point::new(0., 0., 0.75), Vector::new(0., 0., -1.));
         let c = w.color_at(&r);
-        assert_approx!(c, w.get_object(1).material.color, EPS);
+        assert_relative_eq!(c, w.get_object(1).material.color);
     }
 }

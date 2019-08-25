@@ -1,9 +1,11 @@
 extern crate image;
 extern crate nalgebra as na;
+#[cfg(test)]
+#[macro_use]
+extern crate approx;
 
 pub mod canvas;
 pub mod color;
-pub mod float;
 pub mod geometry;
 pub mod light;
 pub mod material;

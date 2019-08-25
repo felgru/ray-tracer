@@ -55,10 +55,6 @@ impl Sphere {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assert_approx;
-    use crate::float::Approx;
-
-    const EPS: f64 = 1e-8;
 
     #[test]
     fn ray_intersecting_sphere_at_two_points() {
@@ -66,8 +62,8 @@ mod tests {
         let s = Sphere::new();
         let xs = s.intersect(&r);
         assert_eq!(xs.len(), 2);
-        assert_approx!(xs[0], 4.0, EPS);
-        assert_approx!(xs[1], 6.0, EPS);
+        assert_relative_eq!(xs[0], 4.0);
+        assert_relative_eq!(xs[1], 6.0);
     }
 
     #[test]
@@ -76,8 +72,8 @@ mod tests {
         let s = Sphere::new();
         let xs = s.intersect(&r);
         assert_eq!(xs.len(), 2);
-        assert_approx!(xs[0], 5.0, EPS);
-        assert_approx!(xs[1], 5.0, EPS);
+        assert_relative_eq!(xs[0], 5.0);
+        assert_relative_eq!(xs[1], 5.0);
     }
 
     #[test]
@@ -94,8 +90,8 @@ mod tests {
         let s = Sphere::new();
         let xs = s.intersect(&r);
         assert_eq!(xs.len(), 2);
-        assert_approx!(xs[0], -1.0, EPS);
-        assert_approx!(xs[1],  1.0, EPS);
+        assert_relative_eq!(xs[0], -1.0);
+        assert_relative_eq!(xs[1],  1.0);
     }
 
     #[test]
@@ -104,14 +100,14 @@ mod tests {
         let s = Sphere::new();
         let xs = s.intersect(&r);
         assert_eq!(xs.len(), 2);
-        assert_approx!(xs[0], -6.0, EPS);
-        assert_approx!(xs[1], -4.0, EPS);
+        assert_relative_eq!(xs[0], -6.0);
+        assert_relative_eq!(xs[1], -4.0);
     }
 
     #[test]
     fn default_transformation_of_a_sphere() {
         let s = Sphere::new();
-        assert_approx!(s.transform, identity(), EPS);
+        assert_relative_eq!(s.transform, identity());
     }
 
     #[test]
@@ -120,7 +116,7 @@ mod tests {
         use crate::geometry::translation;
         let m = translation(&Vector::new(2., 3., 4.));
         s.transform = m;
-        assert_approx!(s.transform, m, EPS);
+        assert_relative_eq!(s.transform, m);
     }
 
     #[test]
@@ -131,8 +127,8 @@ mod tests {
         s.transform = scaling(2., 2., 2.);
         let xs = s.intersect(&r);
         assert_eq!(xs.len(), 2);
-        assert_approx!(xs[0], 3.0, EPS);
-        assert_approx!(xs[1], 7.0, EPS);
+        assert_relative_eq!(xs[0], 3.0);
+        assert_relative_eq!(xs[1], 7.0);
     }
 
     #[test]
@@ -149,21 +145,21 @@ mod tests {
     fn normal_of_sphere_on_x_axis() {
         let s = Sphere::new();
         let n = s.normal_at(&Point::new(1., 0., 0.));
-        assert_approx!(n, Vector::new(1., 0., 0.), EPS);
+        assert_relative_eq!(n, Vector::new(1., 0., 0.));
     }
 
     #[test]
     fn normal_of_sphere_on_y_axis() {
         let s = Sphere::new();
         let n = s.normal_at(&Point::new(0., 1., 0.));
-        assert_approx!(n, Vector::new(0., 1., 0.), EPS);
+        assert_relative_eq!(n, Vector::new(0., 1., 0.));
     }
 
     #[test]
     fn normal_of_sphere_on_z_axis() {
         let s = Sphere::new();
         let n = s.normal_at(&Point::new(0., 0., 1.));
-        assert_approx!(n, Vector::new(0., 0., 1.), EPS);
+        assert_relative_eq!(n, Vector::new(0., 0., 1.));
     }
 
     #[test]
@@ -171,7 +167,7 @@ mod tests {
         let s = Sphere::new();
         let x = 1./f64::sqrt(3.);
         let n = s.normal_at(&Point::new(x, x, x));
-        assert_approx!(n, Vector::new(x, x, x), EPS);
+        assert_relative_eq!(n, Vector::new(x, x, x));
     }
 
     #[test]
@@ -180,7 +176,7 @@ mod tests {
         use crate::geometry::translation;
         s.transform = translation(&Vector::new(0., 1., 0.));
         let n = s.normal_at(&Point::new(0., 1.70711, -0.70711));
-        assert_approx!(n, Vector::new(0., 0.70711, -0.70711), 1e-5);
+        assert_relative_eq!(n, Vector::new(0., 0.70711, -0.70711), max_relative = 1e-5);
     }
 
     #[test]
@@ -190,7 +186,7 @@ mod tests {
         s.transform = scaling(1., 0.5, 1.) * rotation_z(std::f64::consts::PI/5.);
         let x = 1./f64::sqrt(2.);
         let n = s.normal_at(&Point::new(0., x, -x));
-        assert_approx!(n, Vector::new(0., 0.97014, -0.24254), 1e-5);
+        assert_relative_eq!(n, Vector::new(0., 0.97014, -0.24254), max_relative = 1e-4);
     }
 
     #[test]

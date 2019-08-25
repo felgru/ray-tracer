@@ -22,10 +22,6 @@ impl Ray {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assert_approx;
-    use crate::float::Approx;
-
-    const EPS: f64 = 1e-8;
 
     #[test]
     fn creating_and_querying_a_ray() {
@@ -39,10 +35,10 @@ mod tests {
     #[test]
     fn position_after_given_time_of_flight() {
         let r = Ray::new(Point::new(2., 3., 4.), Vector::new(1., 0., 0.));
-        assert_approx!(r.position(0.), Point::new(2., 3., 4.), EPS);
-        assert_approx!(r.position(1.), Point::new(3., 3., 4.), EPS);
-        assert_approx!(r.position(-1.), Point::new(1., 3., 4.), EPS);
-        assert_approx!(r.position(2.5), Point::new(4.5, 3., 4.), EPS);
+        assert_relative_eq!(r.position(0.), Point::new(2., 3., 4.));
+        assert_relative_eq!(r.position(1.), Point::new(3., 3., 4.));
+        assert_relative_eq!(r.position(-1.), Point::new(1., 3., 4.));
+        assert_relative_eq!(r.position(2.5), Point::new(4.5, 3., 4.));
     }
 
     #[test]
@@ -51,8 +47,8 @@ mod tests {
         use crate::geometry::translation;
         let m = translation(&Vector::new(3., 4., 5.));
         let r2 = r.transform(&m);
-        assert_approx!(r2.origin, Point::new(4., 6., 8.), EPS);
-        assert_approx!(r2.direction, Vector::new(0., 1., 0.), EPS);
+        assert_relative_eq!(r2.origin, Point::new(4., 6., 8.));
+        assert_relative_eq!(r2.direction, Vector::new(0., 1., 0.));
     }
 
     #[test]
@@ -61,7 +57,7 @@ mod tests {
         use crate::geometry::scaling;
         let m = scaling(2., 3., 4.);
         let r2 = r.transform(&m);
-        assert_approx!(r2.origin, Point::new(2., 6., 12.), EPS);
-        assert_approx!(r2.direction, Vector::new(0., 3., 0.), EPS);
+        assert_relative_eq!(r2.origin, Point::new(2., 6., 12.));
+        assert_relative_eq!(r2.direction, Vector::new(0., 3., 0.));
     }
 }
