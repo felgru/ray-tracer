@@ -147,6 +147,28 @@ impl<'a> PreparedComputations<'a> {
 }
 
 #[cfg(test)]
+pub fn default_world() -> World {
+    let intensity = Color::new(1., 1., 1.);
+    let light = PointLight::new(Point::new(-10., 10., -10.),
+                                intensity);
+    let mut s1 = Sphere::new();
+    let c = Color::new(0.8, 1., 0.6);
+    s1.material.color = c;
+    s1.material.diffuse = 0.7;
+    s1.material.specular = 0.2;
+    let mut s2 = Sphere::new();
+    use crate::geometry::scaling;
+    let t = scaling(0.5, 0.5, 0.5);
+    s2.transform = t;
+
+    let mut w = World::new();
+    w.add_light(light);
+    w.add_object(s1);
+    w.add_object(s2);
+    w
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -211,27 +233,6 @@ mod tests {
         let w = World::new();
         assert!(w.objects.is_empty());
         assert!(w.lights.is_empty());
-    }
-
-    fn default_world() -> World {
-        let intensity = Color::new(1., 1., 1.);
-        let light = PointLight::new(Point::new(-10., 10., -10.),
-                                    intensity);
-        let mut s1 = Sphere::new();
-        let c = Color::new(0.8, 1., 0.6);
-        s1.material.color = c;
-        s1.material.diffuse = 0.7;
-        s1.material.specular = 0.2;
-        let mut s2 = Sphere::new();
-        use crate::geometry::scaling;
-        let t = scaling(0.5, 0.5, 0.5);
-        s2.transform = t;
-
-        let mut w = World::new();
-        w.add_light(light);
-        w.add_object(s1);
-        w.add_object(s2);
-        w
     }
 
     #[test]

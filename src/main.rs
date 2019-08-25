@@ -1,43 +1,23 @@
 use ray_tracer::*;
-use canvas::Canvas;
+use camera::Camera;
 use color::Color;
-use geometry::Point;
+use geometry::{Point, Vector, view_transform};
 use light::PointLight;
-use rays::Ray;
 use shapes::sphere::Sphere;
 use world::World;
 
 fn main() {
-    let ray_origin = Point::new(0., 0., -5.);
-    let wall_z = 10.;
-    let wall_size = 7.0;
+    let field_of_view = std::f64::consts::PI/2.;
     let canvas_pixels = 200;
-    let pixel_size = wall_size / (canvas_pixels as f64);
-    let half = wall_size / 2.;
-
-    let mut canvas = Canvas::new(canvas_pixels, canvas_pixels);
+    let mut c = Camera::new(canvas_pixels, canvas_pixels, field_of_view);
+    let from = Point::new(0., 0., -5.);
+    let to = Point::new(0., 0., 0.);
+    let up = Vector::new(0., 1., 0.);
+    c.transform = view_transform(&from, &to, &up);
 
     let world = define_world();
 
-    // for each row
-    for y in 0..canvas_pixels {
-        // compute the world y coordinate (top = +half, bottom = -half)
-        let world_y = half - pixel_size * (y as f64);
-
-        // for each pixel in the row
-        for x in 0..canvas_pixels {
-            // compute the world x coordinate (left = -half, right = half)
-            let world_x = -half + pixel_size * (x as f64);
-
-            // describe the point on the wall that the ray will target
-            let position = Point::new(world_x, world_y, wall_z);
-
-            let ray = Ray::new(ray_origin, (position - ray_origin).normalize());
-            let color = world.color_at(&ray);
-            canvas.write_pixel(x, y, color);
-        }
-    }
-
+    let canvas = c.render(&world);
     canvas.write_image("test.png").unwrap();
 }
 

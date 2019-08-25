@@ -4,6 +4,7 @@ extern crate nalgebra as na;
 #[macro_use]
 extern crate approx;
 
+pub mod camera;
 pub mod canvas;
 pub mod color;
 pub mod geometry;
