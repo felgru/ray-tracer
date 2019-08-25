@@ -2,6 +2,7 @@ mod sphere;
 mod plane;
 
 use crate::geometry::{identity, Point, Transform, Vector};
+use crate::color::Color;
 use crate::material::Material;
 use crate::rays::Ray;
 
@@ -31,6 +32,13 @@ impl Shape {
     pub fn normal_at(&self, point: &Point) -> Vector {
         let shape_type = self.get_shape_type();
         self.data.normal_at(point, shape_type)
+    }
+
+    pub fn color_at(&self, point: &Point) -> Color {
+        let pattern = self.get_material().pattern;
+        let object_point  = self.get_transform().inverse() * point;
+        let pattern_point = pattern.transform.inverse() * object_point;
+        pattern.local_color_at(&pattern_point)
     }
 
     fn get_shape_type(&self) -> &'static dyn ShapeType {
@@ -99,6 +107,9 @@ impl ShapeData {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use crate::geometry::*;
+    use crate::patterns::Pattern;
 
     #[test]
     fn default_transformation_of_a_sphere() {
@@ -169,5 +180,42 @@ mod tests {
         m.ambient = 1.;
         s.set_material(m);
         assert_eq!(s.get_material(), &m);
+    }
+
+    #[test]
+    fn stripes_with_transformed_sphere() {
+        let mut object = Shape::sphere();
+        object.set_transform(scaling(2., 2., 2.));
+        let pattern = Pattern::stripes(Color::white(), Color::black());
+        set_pattern_of_object(&mut object, pattern);
+        let c = object.color_at(&Point::new(1.5, 0., 0.));
+        assert_eq!(c, Color::white());
+    }
+
+    #[test]
+    fn stripes_with_transformed_pattern() {
+        let mut object = Shape::sphere();
+        let mut pattern = Pattern::stripes(Color::white(), Color::black());
+        pattern.transform = scaling(2., 2., 2.);
+        set_pattern_of_object(&mut object, pattern);
+        let c = object.color_at(&Point::new(1.5, 0., 0.));
+        assert_eq!(c, Color::white());
+    }
+
+    #[test]
+    fn stripes_with_transformed_pattern_and_object() {
+        let mut object = Shape::sphere();
+        object.set_transform(scaling(2., 2., 2.));
+        let mut pattern = Pattern::stripes(Color::white(), Color::black());
+        pattern.transform = translation(&Vector::new(0.5, 0., 0.));
+        set_pattern_of_object(&mut object, pattern);
+        let c = object.color_at(&Point::new(2.5, 0., 0.));
+        assert_eq!(c, Color::white());
+    }
+
+    fn set_pattern_of_object(object: &mut Shape, pattern: Pattern) {
+        let mut material = object.get_material().clone();
+        material.pattern = pattern;
+        object.set_material(material);
     }
 }

@@ -199,7 +199,8 @@ pub fn default_world() -> World {
         let c = Color::new(0.8, 1., 0.6);
         use crate::material::Material;
         let mut m = Material::new();
-        m.color = c;
+        use crate::patterns::Pattern;
+        m.pattern = Pattern::uniform(c);
         m.diffuse = 0.7;
         m.specular = 0.2;
         m
@@ -223,6 +224,7 @@ mod tests {
 
     use crate::geometry::*;
     use crate::material::Material;
+    use crate::patterns::Pattern;
 
     #[test]
     fn intersection_properties() {
@@ -294,7 +296,7 @@ mod tests {
 
         let w = default_world();
         assert_eq!(w.lights[0].intensity, intensity);
-        assert_eq!(w.objects[0].get_material().color, c);
+        assert_eq!(w.objects[0].get_material().pattern, Pattern::uniform(c));
         assert_eq!(w.objects[1].get_transform(), &t);
     }
 
@@ -317,13 +319,13 @@ mod tests {
         let mut shape = Shape::sphere();
         let red = Color::new(1., 0., 0.);
         let mut m = Material::new();
-        m.color = red;
+        m.pattern = Pattern::uniform(red);
         shape.set_material(m);
         let indx = w.add_object(shape);
         let i = Intersection::new(4., indx);
         let comps = w.prepare_computations(&i, &r);
         assert_relative_eq!(comps.t, i.t);
-        assert_eq!(comps.object.get_material().color, red);
+        assert_eq!(comps.object.get_material().pattern, Pattern::uniform(red));
         assert_relative_eq!(comps.point, Point::new(0., 0., -1.));
         assert_relative_eq!(comps.eyev, Vector::new(0., 0., -1.));
         assert_relative_eq!(comps.normalv, Vector::new(0., 0., -1.));
@@ -337,13 +339,13 @@ mod tests {
         let mut shape = Shape::sphere();
         let red = Color::new(1., 0., 0.);
         let mut m = shape.get_material().clone();
-        m.color = red;
+        m.pattern = Pattern::uniform(red);
         shape.set_material(m);
         let indx = w.add_object(shape);
         let i = Intersection::new(1., indx);
         let comps = w.prepare_computations(&i, &r);
         assert_relative_eq!(comps.t, i.t);
-        assert_eq!(comps.object.get_material().color, red);
+        assert_eq!(comps.object.get_material().pattern, Pattern::uniform(red));
         assert_relative_eq!(comps.point, Point::new(0., 0., 1.));
         assert_relative_eq!(comps.eyev, Vector::new(0., 0., -1.));
         // Normal has been inverted.
@@ -407,7 +409,7 @@ mod tests {
         };
         let r = Ray::new(Point::new(0., 0., 0.75), Vector::new(0., 0., -1.));
         let c = w.color_at(&r, 4);
-        assert_relative_eq!(c, w.get_object(1).get_material().color);
+        assert_relative_eq!(c, Color::white());
     }
 
     fn set_ambient_of_object(w: &mut World, i: usize, ambient: f64) {

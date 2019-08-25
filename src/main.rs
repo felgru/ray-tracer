@@ -4,6 +4,7 @@ use color::Color;
 use geometry::*;
 use light::PointLight;
 use material::Material;
+use patterns::Pattern;
 use shapes::Shape;
 use world::World;
 
@@ -49,7 +50,7 @@ fn define_world() -> World {
 
 fn floor_material() -> Material {
     let mut m = Material::new();
-    m.color = Color::new(1., 0.9, 0.9);
+    m.pattern = Pattern::stripes(Color::new(1., 0.9, 0.9), Color::new(0.8, 0.4, 0.4));
     m.specular = 0.;
     m
 }
@@ -103,7 +104,7 @@ fn left_sphere() -> Shape {
 
 fn sphere_material(color: Color) -> Material {
     let mut m = Material::new();
-    m.color = color;
+    m.pattern = Pattern::stripes(color, color * 0.5);
     m.diffuse = 0.7;
     m.specular = 0.3;
     m

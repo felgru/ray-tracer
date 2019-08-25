@@ -1,10 +1,11 @@
 use crate::color::Color;
 use crate::geometry::{Point, reflect, Vector};
 use crate::light::PointLight;
+use crate::patterns::Pattern;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Material {
-    pub color: Color,
+    pub pattern: Pattern,
     pub ambient: f64,
     pub diffuse: f64,
     pub specular: f64,
@@ -15,7 +16,7 @@ pub struct Material {
 impl Material {
     pub fn new() -> Self {
         Material {
-            color: Color::white(),
+            pattern: Pattern::uniform(Color::white()),
             ambient: 0.1,
             diffuse: 0.9,
             specular: 0.9,
@@ -24,11 +25,17 @@ impl Material {
         }
     }
 
+    pub fn local_color_at(&self, point: &Point) -> Color {
+        self.pattern.local_color_at(point)
+    }
+
     /// Compute light intensity using Phong shader.
     pub fn lighting(&self, light: &PointLight, position: &Point,
                     eyev: &Vector, normalv: &Vector,
                     in_shadow: bool) -> Color {
-        let effective_color = self.color * light.intensity;
+        // TODO: color should be computed as object.color_at(position)
+        let color = self.local_color_at(position);
+        let effective_color = color * light.intensity;
         let lightv = (light.position - position).normalize();
         let ambient = effective_color * self.ambient;
 
@@ -62,11 +69,12 @@ mod tests {
     #[test]
     fn default_material() {
         let m = Material::new();
-        assert_eq!(m.color, Color::white());
+        assert_eq!(m.local_color_at(&Point::new(0., 0., 0.)), Color::white());
         assert_eq!(m.ambient, 0.1);
         assert_eq!(m.diffuse, 0.9);
         assert_eq!(m.specular, 0.9);
         assert_eq!(m.shininess, 200.);
+        assert_eq!(m.reflective, 0.);
     }
 
     #[test]
@@ -153,5 +161,23 @@ mod tests {
     fn reflectivity_of_default_material() {
         let m = Material::new();
         assert_eq!(m.reflective, 0.0);
+    }
+
+    #[test]
+    fn lighting_with_strip_pattern() {
+        let mut m = Material::new();
+        m.pattern = Pattern::stripes(Color::white(), Color::black());
+        m.ambient = 1.;
+        m.diffuse = 0.;
+        m.specular = 0.;
+        let eyev = Vector::new(0., 0., -1.);
+        let normalv = Vector::new(0., 0., -1.);
+        let light = PointLight::new(Point::new(0., 0., -10.), Color::white());
+        let c1 = m.lighting(&light, &Point::new(0.9, 0., 0.),
+                            &eyev, &normalv, false);
+        let c2 = m.lighting(&light, &Point::new(1.1, 0., 0.),
+                            &eyev, &normalv, false);
+        assert_relative_eq!(c1, Color::white());
+        assert_relative_eq!(c2, Color::black());
     }
 }

@@ -10,6 +10,7 @@ pub mod color;
 pub mod geometry;
 pub mod light;
 pub mod material;
+pub mod patterns;
 pub mod rays;
 pub mod shapes;
 pub mod world;
