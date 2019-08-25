@@ -1,5 +1,7 @@
 use std::ops::Index;
 
+use crate::color::Color;
+use crate::geometry::{Point, Vector};
 use crate::light::PointLight;
 use crate::rays::Ray;
 use crate::shapes::sphere::Sphere;
@@ -35,17 +37,41 @@ impl World {
         &self.lights[i]
     }
 
-    pub fn intersect(&self, ray: &Ray) -> Intersections {
+    pub fn color_at(&self, ray: &Ray) -> Color {
+        let is = self.intersect(ray);
+        match is.hit() {
+            Some(i) => {
+                let comps = self.prepare_computations(&i, ray);
+                self.shade_hit(&comps)
+            },
+            None => Color::black(),
+        }
+    }
+
+    fn intersect(&self, ray: &Ray) -> Intersections {
         let mut intersections = Intersections::new(vec![]);
         for (i, obj) in self.objects.iter().enumerate() {
             intersections.add_intersections(i, obj.intersect(ray));
         }
         intersections
     }
+
+    fn prepare_computations<'a>(&'a self, intersection: &'a Intersection,
+                                ray: &'a Ray) -> PreparedComputations<'a> {
+        PreparedComputations::new(self, intersection, ray)
+    }
+
+    fn shade_hit(&self, comps: &PreparedComputations) -> Color {
+        let lighting = |l| comps.object.material.lighting(l,
+                                                           &comps.point,
+                                                           &comps.eyev,
+                                                           &comps.normalv);
+        self.lights.iter().map(lighting).sum::<Color>()
+    }
 }
 
 #[derive(Copy, Clone)]
-pub struct Intersection {
+struct Intersection {
     pub t: f64,
     pub object_index: usize,
 }
@@ -56,7 +82,7 @@ impl Intersection {
     }
 }
 
-pub struct Intersections {
+struct Intersections {
     intersections: Vec<Intersection>,
 }
 
@@ -67,10 +93,6 @@ impl Intersections {
         Intersections {
             intersections
         }
-    }
-
-    pub fn count(&self) -> usize {
-        self.intersections.len()
     }
 
     pub fn hit(&self) -> Option<Intersection> {
@@ -91,13 +113,48 @@ impl Index<usize> for Intersections {
     }
 }
 
+struct PreparedComputations<'a> {
+    pub t: f64,
+    pub object: &'a Sphere,
+    pub point: Point,
+    pub eyev: Vector,
+    pub normalv: Vector,
+    pub inside: bool,
+}
+
+impl<'a> PreparedComputations<'a> {
+    pub fn new(world: &'a World, intersection: &'a Intersection, ray: &'a Ray) -> Self {
+        let point = ray.position(intersection.t);
+        let object = world.get_object(intersection.object_index);
+        let eyev = -ray.direction;
+        let mut normalv = object.normal_at(&point);
+        let inside;
+        if normalv.dot(&eyev) < 0. {
+            inside = true;
+            normalv = -normalv;
+        } else {
+            inside = false;
+        }
+        PreparedComputations{
+            t: intersection.t,
+            object: object,
+            point: point,
+            eyev: eyev,
+            normalv: normalv,
+            inside: inside,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::assert_approx;
+    use crate::float::Approx;
+
+    const EPS: f64 = 1e-8;
 
     use crate::shapes::sphere::Sphere;
-    use crate::color::Color;
-    use crate::geometry::{Point, Vector};
 
     #[test]
     fn intersection_properties() {
@@ -111,7 +168,7 @@ mod tests {
         let i1 = Intersection::new(1., 0);
         let i2 = Intersection::new(2., 0);
         let xs = Intersections::new(vec![i1, i2]);
-        assert_eq!(xs.count(), 2);
+        assert_eq!(xs.intersections.len(), 2);
         assert_eq!(xs[0].t, 1.);
         assert_eq!(xs[1].t, 2.);
     }
@@ -199,10 +256,108 @@ mod tests {
         let w = default_world();
         let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
         let xs = w.intersect(&r);
-        assert_eq!(xs.count(), 4);
+        assert_eq!(xs.intersections.len(), 4);
         assert_eq!(xs[0].t, 4.);
         assert_eq!(xs[1].t, 4.5);
         assert_eq!(xs[2].t, 5.5);
         assert_eq!(xs[3].t, 6.);
+    }
+
+    #[test]
+    fn precompute_state_of_an_outside_hit() {
+        let mut w = default_world();
+        let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
+        let mut shape = Sphere::new();
+        let red = Color::new(1., 0., 0.);
+        shape.material.color = red;
+        let indx = w.add_object(shape);
+        let i = Intersection::new(4., indx);
+        let comps = w.prepare_computations(&i, &r);
+        assert_approx!(comps.t, i.t, EPS);
+        assert_eq!(comps.object.material.color, red);
+        assert_approx!(comps.point, Point::new(0., 0., -1.), EPS);
+        assert_approx!(comps.eyev, Vector::new(0., 0., -1.), EPS);
+        assert_approx!(comps.normalv, Vector::new(0., 0., -1.), EPS);
+        assert_eq!(comps.inside, false);
+    }
+
+    #[test]
+    fn precompute_state_of_an_inside_hit() {
+        let mut w = default_world();
+        let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
+        let mut shape = Sphere::new();
+        let red = Color::new(1., 0., 0.);
+        shape.material.color = red;
+        let indx = w.add_object(shape);
+        let i = Intersection::new(1., indx);
+        let comps = w.prepare_computations(&i, &r);
+        assert_approx!(comps.t, i.t, EPS);
+        assert_eq!(comps.object.material.color, red);
+        assert_approx!(comps.point, Point::new(0., 0., 1.), EPS);
+        assert_approx!(comps.eyev, Vector::new(0., 0., -1.), EPS);
+        // Normal has been inverted.
+        assert_approx!(comps.normalv, Vector::new(0., 0., -1.), EPS);
+        assert_eq!(comps.inside, true);
+    }
+
+    #[test]
+    fn shading_an_intersection() {
+        let w = default_world();
+        let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
+        let i = Intersection::new(4., 0);
+        let comps = w.prepare_computations(&i, &r);
+        let c = w.shade_hit(&comps);
+        let expected = Color::new(0.38066119308103435,
+                                  0.47582649135129296,
+                                  0.28549589481077575);
+        assert_approx!(c, expected, EPS);
+    }
+
+    #[test]
+    fn shading_an_intersection_from_the_inside() {
+        let mut w = default_world();
+        w.lights[0] = PointLight::new(Point::new(0., 0.25, 0.),
+                                      Color::new(1., 1., 1.));
+        let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
+        let i = Intersection::new(0.5, 1);
+        let comps = w.prepare_computations(&i, &r);
+        let c = w.shade_hit(&comps);
+        let intensity = 0.9049844720832575;
+        let expected = Color::new(intensity, intensity, intensity);
+        assert_approx!(c, expected, EPS);
+    }
+
+    #[test]
+    fn color_when_ray_misses() {
+        let w = default_world();
+        let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 1., 0.));
+        let c = w.color_at(&r);
+        assert_eq!(c, Color::black());
+    }
+
+    #[test]
+    fn color_when_ray_hits() {
+        let w = default_world();
+        let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
+        let c = w.color_at(&r);
+        let expected = Color::new(0.38066119308103435,
+                                  0.47582649135129296,
+                                  0.28549589481077575);
+        assert_approx!(c, expected, EPS);
+    }
+
+    #[test]
+    fn color_whith_intersection_behind_the_ray() {
+        let w = {
+            let mut w = default_world();
+            let outer = &mut w.objects[0];
+            outer.material.ambient = 1.;
+            let inner = &mut w.objects[1];
+            inner.material.ambient = 1.;
+            w
+        };
+        let r = Ray::new(Point::new(0., 0., 0.75), Vector::new(0., 0., -1.));
+        let c = w.color_at(&r);
+        assert_approx!(c, w.get_object(1).material.color, EPS);
     }
 }

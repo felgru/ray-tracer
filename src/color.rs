@@ -1,3 +1,4 @@
+use std::iter::Sum;
 use std::ops::Add;
 use std::ops::Sub;
 use std::ops::Mul;
@@ -38,7 +39,7 @@ impl Color {
 
 impl Default for Color {
     fn default() -> Self {
-        Color::new(0., 0., 0.)
+        Color::black()
     }
 }
 
@@ -51,6 +52,12 @@ impl Add for Color {
             green: self.green + rhs.green,
             blue: self.blue + rhs.blue,
         }
+    }
+}
+
+impl Sum for Color {
+    fn sum<I: Iterator<Item=Color>>(iter: I) -> Color {
+        iter.fold(Color::black(), |a, b| a + b)
     }
 }
 

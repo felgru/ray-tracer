@@ -33,22 +33,8 @@ fn main() {
             let position = Point::new(world_x, world_y, wall_z);
 
             let ray = Ray::new(ray_origin, (position - ray_origin).normalize());
-            let xs = world.intersect(&ray);
-
-            match xs.hit() {
-                Some(i) => {
-                    let object = world.get_object(i.object_index);
-                    let light  = world.get_light(0);
-
-                    let point  = ray.position(i.t);
-                    let normal = object.normal_at(&point);
-                    let eye    = -ray.direction;
-
-                    let color  = object.material.lighting(&light, &point, &eye, &normal);
-                    canvas.write_pixel(x, y, color);
-                },
-                None => {},
-            }
+            let color = world.color_at(&ray);
+            canvas.write_pixel(x, y, color);
         }
     }
 
