@@ -63,10 +63,25 @@ impl World {
 
     fn shade_hit(&self, comps: &PreparedComputations) -> Color {
         let lighting = |l| comps.object.material.lighting(l,
-                                                           &comps.point,
-                                                           &comps.eyev,
-                                                           &comps.normalv);
+                                                          &comps.point,
+                                                          &comps.eyev,
+                                                          &comps.normalv,
+                                                          self.is_shadowed(&comps.over_point, l));
         self.lights.iter().map(lighting).sum::<Color>()
+    }
+
+    fn is_shadowed(&self, point: &Point, light: &PointLight) -> bool {
+        let v = light.position - point;
+        let distance = v.norm();
+        let direction = v.normalize();
+
+        let ray = Ray::new(*point, direction);
+        let intersections = self.intersect(&ray);
+
+        match intersections.hit() {
+            Some(i) => i.t < distance,
+            None    => false,
+        }
     }
 }
 
@@ -117,6 +132,7 @@ struct PreparedComputations<'a> {
     pub t: f64,
     pub object: &'a Sphere,
     pub point: Point,
+    pub over_point: Point,
     pub eyev: Vector,
     pub normalv: Vector,
     pub inside: bool,
@@ -135,14 +151,21 @@ impl<'a> PreparedComputations<'a> {
         } else {
             inside = false;
         }
+        let eps = Self::over_point_eps();
+        let over_point = point + normalv * eps;
         PreparedComputations{
             t: intersection.t,
             object: object,
             point: point,
+            over_point: over_point,
             eyev: eyev,
             normalv: normalv,
             inside: inside,
         }
+    }
+
+    fn over_point_eps() -> f64 {
+        1e-10
     }
 }
 
@@ -172,6 +195,7 @@ pub fn default_world() -> World {
 mod tests {
     use super::*;
 
+    use crate::geometry::*;
     use crate::shapes::sphere::Sphere;
 
     #[test]
@@ -356,5 +380,71 @@ mod tests {
         let r = Ray::new(Point::new(0., 0., 0.75), Vector::new(0., 0., -1.));
         let c = w.color_at(&r);
         assert_relative_eq!(c, w.get_object(1).material.color);
+    }
+
+    #[test]
+    fn no_shadow_when_nothing_is_between_point_and_light() {
+        let w = default_world();
+        let l = w.get_light(0);
+        let p = Point::new(0., 10., 0.);
+        assert!(!w.is_shadowed(&p, l));
+    }
+
+    #[test]
+    fn shadow_when_object_between_point_and_light() {
+        let w = default_world();
+        let l = w.get_light(0);
+        let p = Point::new(10., -10., 10.);
+        assert!(w.is_shadowed(&p, l));
+    }
+
+    #[test]
+    fn no_shadow_when_object_behind_light() {
+        let w = default_world();
+        let l = w.get_light(0);
+        let p = Point::new(-20., 20., -20.);
+        assert!(!w.is_shadowed(&p, l));
+    }
+
+    #[test]
+    fn no_shadow_when_object_behind_point() {
+        let w = default_world();
+        let l = w.get_light(0);
+        let p = Point::new(-2., 2., -2.);
+        assert!(!w.is_shadowed(&p, l));
+    }
+
+    #[test]
+    fn shade_hit_is_given_an_intersection_in_shadow() {
+        let mut w = World::new();
+        w.add_light(PointLight::new(Point::new(0., 0., -10.),
+                                    Color::new(1., 1., 1.)));
+        let s1 = Sphere::new();
+        w.add_object(s1);
+        let mut s2 = Sphere::new();
+        s2.transform = translation(&Vector::new(0., 0., 10.));
+        w.add_object(s2);
+        let r = Ray::new(Point::new(0., 0., 5.), Vector::new(0., 0., 1.));
+        let i = Intersection::new(4., 1);
+        let comps = w.prepare_computations(&i, &r);
+        let c = w.shade_hit(&comps);
+        assert_relative_eq!(c, Color::new(0.1, 0.1, 0.1));
+    }
+
+    #[test]
+    fn hit_should_offset_the_point() {
+        let w = {
+            let mut w = World::new();
+            let mut shape = Sphere::new();
+            shape.transform = translation(&Vector::new(0., 0., 1.));
+            w.add_object(shape);
+            w
+        };
+        let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
+        let i = Intersection::new(5., 0);
+        let comps = w.prepare_computations(&i, &r);
+        let eps = PreparedComputations::over_point_eps();
+        assert!(comps.over_point[2] < -eps/2.);
+        assert!(comps.point[2] > comps.over_point[2]);
     }
 }

@@ -24,7 +24,8 @@ impl Material {
 
     /// Compute light intensity using Phong shader.
     pub fn lighting(&self, light: &PointLight, position: &Point,
-                    eyev: &Vector, normalv: &Vector) -> Color {
+                    eyev: &Vector, normalv: &Vector,
+                    in_shadow: bool) -> Color {
         let effective_color = self.color * light.intensity;
         let lightv = (light.position - position).normalize();
         let ambient = effective_color * self.ambient;
@@ -32,7 +33,7 @@ impl Material {
         let diffuse;
         let specular;
         let light_dot_normal = lightv.dot(normalv);
-        if light_dot_normal < 0. {
+        if in_shadow || light_dot_normal < 0. {
             diffuse = Color::black();
             specular = Color::black();
         } else {
@@ -73,7 +74,8 @@ mod tests {
         let eyev = Vector::new(0., 0., -1.);
         let normalv = Vector::new(0., 0., -1.);
         let light = PointLight::new(Point::new(0., 0., -10.), Color::new(1., 1., 1.));
-        let result = m.lighting(&light, &position, &eyev, &normalv);
+        let in_shadow = false;
+        let result = m.lighting(&light, &position, &eyev, &normalv, in_shadow);
         let intensity = 1.9;
         assert_relative_eq!(result, Color::new(intensity, intensity, intensity));
     }
@@ -86,7 +88,8 @@ mod tests {
         let eyev = Vector::new(0., x, -x);
         let normalv = Vector::new(0., 0., -1.);
         let light = PointLight::new(Point::new(0., 0., -10.), Color::new(1., 1., 1.));
-        let result = m.lighting(&light, &position, &eyev, &normalv);
+        let in_shadow = false;
+        let result = m.lighting(&light, &position, &eyev, &normalv, in_shadow);
         let intensity = 1.0;
         assert_relative_eq!(result, Color::new(intensity, intensity, intensity));
     }
@@ -98,7 +101,8 @@ mod tests {
         let eyev = Vector::new(0., 0., -1.);
         let normalv = Vector::new(0., 0., -1.);
         let light = PointLight::new(Point::new(0., 10., -10.), Color::new(1., 1., 1.));
-        let result = m.lighting(&light, &position, &eyev, &normalv);
+        let in_shadow = false;
+        let result = m.lighting(&light, &position, &eyev, &normalv, in_shadow);
         let intensity = 0.1 + 0.9 * 1./f64::sqrt(2.) + 0.; // approximately 0.7364
         assert_relative_eq!(result, Color::new(intensity, intensity, intensity));
     }
@@ -111,7 +115,8 @@ mod tests {
         let eyev = Vector::new(0., -x, -x);
         let normalv = Vector::new(0., 0., -1.);
         let light = PointLight::new(Point::new(0., 10., -10.), Color::new(1., 1., 1.));
-        let result = m.lighting(&light, &position, &eyev, &normalv);
+        let in_shadow = false;
+        let result = m.lighting(&light, &position, &eyev, &normalv, in_shadow);
         let intensity = 0.1 + 0.9 * x + 0.9; // approximately 1.6364
         assert_relative_eq!(result, Color::new(intensity, intensity, intensity), max_relative = 1e-12);
     }
@@ -123,7 +128,21 @@ mod tests {
         let eyev = Vector::new(0., 0., -1.);
         let normalv = Vector::new(0., 0., -1.);
         let light = PointLight::new(Point::new(0., 0., 10.), Color::new(1., 1., 1.));
-        let result = m.lighting(&light, &position, &eyev, &normalv);
+        let in_shadow = false;
+        let result = m.lighting(&light, &position, &eyev, &normalv, in_shadow);
+        let intensity = 0.1;
+        assert_relative_eq!(result, Color::new(intensity, intensity, intensity));
+    }
+
+    #[test]
+    fn lighting_with_surface_in_shadow() {
+        let m = Material::new();
+        let position = Point::new(0., 0., 0.);
+        let eyev = Vector::new(0., 0., -1.);
+        let normalv = Vector::new(0., 0., -1.);
+        let light = PointLight::new(Point::new(0., 0., -10.), Color::new(1., 1., 1.));
+        let in_shadow = true;
+        let result = m.lighting(&light, &position, &eyev, &normalv, in_shadow);
         let intensity = 0.1;
         assert_relative_eq!(result, Color::new(intensity, intensity, intensity));
     }
