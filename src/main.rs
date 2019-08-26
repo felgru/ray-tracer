@@ -28,11 +28,7 @@ fn define_camera() -> Camera {
 fn define_world() -> World {
     let mut world = World::new();
 
-    let mut floor = floor();
-    let mut floor_material = floor_material();
-    floor_material.shader.reflective = 0.5;
-    floor.set_material(floor_material);
-    world.add_object(floor);
+    world.add_object(floor());
     world.add_object(left_wall());
     world.add_object(right_wall());
 
@@ -50,7 +46,20 @@ fn define_world() -> World {
 
 fn floor_material() -> Material {
     let mut m = Material::new();
-    m.pattern = Pattern::stripes(Color::new(1., 0.9, 0.9), Color::new(0.8, 0.4, 0.4));
+    let mut p = Pattern::checkers(Color::white(), Color::white() * 0.1);
+    // Slightly move the pattern up to prevent artifacts due
+    // to numerical inaccuracy.
+    p.transform = translation(&Vector::new(0., 0.5, 0.));
+    m.pattern = p;
+    m.shader.specular = 0.;
+    m.shader.reflective = 0.5;
+    m
+}
+
+fn wall_material() -> Material {
+    let mut m = Material::new();
+    m.pattern = Pattern::stripes(Color::new(1., 0.9, 0.9),
+                                 Color::new(0.8, 0.4, 0.4));
     m.shader.specular = 0.;
     m
 }
@@ -66,7 +75,7 @@ fn left_wall() -> Shape {
     let pi = std::f64::consts::PI;
     wall.set_transform(translation(&Vector::new(0., 0., 5.))
                        * rotation_y(-pi/4.) * rotation_x(pi/2.));
-    wall.set_material(floor_material());
+    wall.set_material(wall_material());
     wall
 }
 
@@ -75,14 +84,14 @@ fn right_wall() -> Shape {
     let pi = std::f64::consts::PI;
     wall.set_transform(translation(&Vector::new(0., 0., 5.))
                        * rotation_y(pi/4.) * rotation_x(pi/2.));
-    wall.set_material(floor_material());
+    wall.set_material(wall_material());
     wall
 }
 
 fn middle_sphere() -> Shape {
     let mut s = Shape::sphere();
     s.set_transform(translation(&Vector::new(-0.5, 1., 0.5)));
-    s.set_material(sphere_material(Color::new(0.1, 1., 0.5)));
+    s.set_material(striped_sphere_material(Color::new(0.1, 1., 0.5)));
     s
 }
 
@@ -104,7 +113,17 @@ fn left_sphere() -> Shape {
 
 fn sphere_material(color: Color) -> Material {
     let mut m = Material::new();
+    m.pattern = Pattern::uniform(color);
+    m.shader.diffuse = 0.7;
+    m.shader.specular = 0.3;
+    m
+}
+
+fn striped_sphere_material(color: Color) -> Material {
+    let mut m = sphere_material(color);
     m.pattern = Pattern::stripes(color, color * 0.5);
+    m.pattern.transform = rotation_y(std::f64::consts::PI/8.)
+                        * scaling(0.2, 0.2, 0.2);
     m.shader.diffuse = 0.7;
     m.shader.specular = 0.3;
     m
