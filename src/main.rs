@@ -124,8 +124,10 @@ fn striped_sphere_material(color: Color) -> Material {
     m.pattern = Pattern::stripes(color * 0.6, color * 0.2);
     m.pattern.transform = rotation_y(std::f64::consts::PI/8.)
                         * scaling(0.2, 0.2, 0.2);
-    m.shader.diffuse = 0.7;
-    m.shader.specular = 0.3;
+    m.shader.ambient = 0.1;
+    m.shader.diffuse = 0.3;
+    m.shader.specular = 1.;
+    m.shader.shininess = 300.;
     m.shader.reflective = 0.9;
     m.shader.transparency = 0.9;
     m.shader.refractive_index = 1.52;
