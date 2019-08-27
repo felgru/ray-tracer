@@ -28,6 +28,10 @@ impl Pattern {
         Self::with_data(PatternData::GradientPattern(GradientPattern{a, b}))
     }
 
+    pub fn test() -> Self {
+        Self::with_data(PatternData::TestPattern(TestPattern{}))
+    }
+
     fn with_data(data: PatternData) -> Self {
         Pattern{data, transform: identity()}
     }
@@ -49,6 +53,7 @@ impl Pattern {
             RingPattern(p) => p,
             CheckerPattern(p) => p,
             GradientPattern(p) => p,
+            TestPattern(p) => p,
         }
     }
 }
@@ -60,6 +65,7 @@ enum PatternData {
     CheckerPattern(CheckerPattern),
     RingPattern(RingPattern),
     GradientPattern(GradientPattern),
+    TestPattern(TestPattern),
 }
 
 trait PatternType {
@@ -137,6 +143,15 @@ impl PatternType for GradientPattern {
         let fraction = point[0] - point[0].floor();
 
         self.a + distance * fraction
+    }
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+struct TestPattern {}
+
+impl PatternType for TestPattern {
+    fn local_color_at(&self, point: &Point) -> Color {
+        Color::new(point[0], point[1], point[2])
     }
 }
 

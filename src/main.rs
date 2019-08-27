@@ -126,5 +126,7 @@ fn striped_sphere_material(color: Color) -> Material {
                         * scaling(0.2, 0.2, 0.2);
     m.shader.diffuse = 0.7;
     m.shader.specular = 0.3;
+    m.shader.transparency = 0.9;
+    m.shader.refractive_index = 1.52;
     m
 }

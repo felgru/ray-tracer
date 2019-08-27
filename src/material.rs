@@ -29,6 +29,8 @@ pub struct Shader {
     pub specular: f64,
     pub shininess: f64,
     pub reflective: f64,
+    pub transparency: f64,
+    pub refractive_index: f64,
 }
 
 impl Shader {
@@ -38,7 +40,9 @@ impl Shader {
             diffuse: 0.9,
             specular: 0.9,
             shininess: 200.,
-            reflective: 0.0,
+            reflective: 0.,
+            transparency: 0.,
+            refractive_index: 1.,
         }
     }
 
@@ -92,6 +96,8 @@ mod tests {
         assert_eq!(shader.specular, 0.9);
         assert_eq!(shader.shininess, 200.);
         assert_eq!(shader.reflective, 0.);
+        assert_eq!(shader.transparency, 0.);
+        assert_eq!(shader.refractive_index, 1.);
     }
 
     #[test]
