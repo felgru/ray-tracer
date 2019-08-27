@@ -72,10 +72,18 @@ impl World {
                                           &comps.normalv,
                                           self.is_shadowed(&comps.over_point, l));
         let surface = self.lights.iter().map(lighting).sum::<Color>();
+
         let reflected = self.reflected_color(comps, remaining);
         let refracted = self.refracted_color(comps, remaining);
 
-        surface + reflected + refracted
+        let shader = comps.object.get_material().shader;
+        if shader.reflective > 0. && shader.transparency > 0. {
+            let reflectance = schlick(&comps);
+            surface + reflected * reflectance
+                    + refracted * (1. - reflectance)
+        } else {
+            surface + reflected + refracted
+        }
     }
 
     fn reflected_color(&self, comps: &PreparedComputations,
@@ -275,6 +283,28 @@ impl<'a> PreparedComputations<'a> {
     }
 }
 
+/// Schlick's approximation to the Fresnel effect
+fn schlick(comps: &PreparedComputations) -> f64 {
+    let mut cos = comps.eyev.dot(&comps.normalv);
+
+    // total internal reflection can only occur if n1 > n2
+    if comps.n1 > comps.n2 {
+        let n = comps.n1 / comps.n2;
+        let sin2_t = n*n * (1. - cos*cos);
+        if sin2_t > 1. {
+            return 1.;
+        }
+
+        let cos_t = (1. - sin2_t).sqrt();
+
+        // when n1 > n2, use cos(theta_t) instead
+        cos = cos_t;
+    }
+
+    let r0 = ((comps.n1 - comps.n2) / (comps.n1 + comps.n2)).powi(2);
+    r0 + (1. - r0) * (1. - cos).powi(5)
+}
+
 #[cfg(test)]
 pub fn default_world() -> World {
     let intensity = Color::white();
@@ -360,7 +390,9 @@ mod tests {
 
     #[test]
     fn hit_is_always_lowest_nonnegative_intersection() {
-        let intersections: Vec<Intersection> = [5., 7., -3., 2.].into_iter().map(|&t| Intersection::new(t, 0)).collect();
+        let intersections: Vec<Intersection>
+            = [5., 7., -3., 2.].into_iter()
+                               .map(|&t| Intersection::new(t, 0)).collect();
         let xs = Intersections::new(intersections);
         let i = xs.hit().unwrap();
         assert_eq!(i.t, 2.);
@@ -698,7 +730,6 @@ mod tests {
 
     fn glass_sphere() -> Shape {
         let mut s = Shape::sphere();
-        s.set_transform(identity());
         let mut m = Material::new();
         m.shader.transparency = 1.;
         m.shader.refractive_index = 1.5;
@@ -838,6 +869,73 @@ mod tests {
         let comps = w.prepare_computations(&i, &r, &is);
         let color = w.shade_hit(&comps, 5);
         let expected = Color::new(0.93642, 0.68642, 0.68642);
+        assert_relative_eq!(color, expected, max_relative = 1e-4);
+    }
+
+    #[test]
+    fn schlick_approximation_under_total_internal_reflection() {
+        let mut w = World::new();
+        w.add_object(glass_sphere());
+        let x = 1./f64::sqrt(2.);
+        let r = Ray::new(Point::new(0., 0., x), Vector::new(0., 1., 0.));
+        let is = Intersections::new(vec![Intersection::new(-x, 0),
+                                         Intersection::new( x, 0),
+                                        ]);
+        let comps = w.prepare_computations(&is[1], &r, &is);
+        let reflectance = schlick(&comps);
+        assert_relative_eq!(reflectance, 1.);
+    }
+
+    #[test]
+    fn schlick_approximation_with_perpendicular_viewing_angle() {
+        let mut w = World::new();
+        w.add_object(glass_sphere());
+        let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 1., 0.));
+        let is = Intersections::new(vec![Intersection::new(-1., 0),
+                                         Intersection::new( 1., 0),
+                                        ]);
+        let comps = w.prepare_computations(&is[1], &r, &is);
+        let reflectance = schlick(&comps);
+        assert_relative_eq!(reflectance, 0.04);
+    }
+
+    #[test]
+    fn schlick_approximation_with_small_angle_and_n2_larger_than_n1() {
+        let mut w = World::new();
+        w.add_object(glass_sphere());
+        let r = Ray::new(Point::new(0., 0.99, -2.), Vector::new(0., 0., 1.));
+        let is = Intersections::new(vec![Intersection::new(1.8589, 0)]);
+        let comps = w.prepare_computations(&is[0], &r, &is);
+        let reflectance = schlick(&comps);
+        assert_relative_eq!(reflectance, 0.48873, max_relative = 1e-4);
+    }
+
+    #[test]
+    fn shade_hit_with_reflective_transparent_material() {
+        let mut w = default_world();
+        let mut floor = Shape::plane();
+        let mut m = Material::new();
+        m.shader.reflective = 0.5;
+        m.shader.transparency = 0.5;
+        m.shader.refractive_index = 1.5;
+        floor.set_material(m);
+        floor.set_transform(translation(&Vector::new(0., -1., 0.)));
+        w.add_object(floor);
+        let mut ball = Shape::sphere();
+        let mut m = Material::new();
+        m.pattern = Pattern::uniform(Color::new(1., 0., 0.));
+        m.shader.ambient = 0.5;
+        ball.set_material(m);
+        ball.set_transform(translation(&Vector::new(0., -3.5, -0.5)));
+        w.add_object(ball);
+        let sqrt2 = f64::sqrt(2.);
+        let r = Ray::new(Point::new(0., 0., -3.),
+                         Vector::new(0., -1./sqrt2, 1./sqrt2));
+        let i = Intersection::new(sqrt2, 2);
+        let is = Intersections::new(vec![i]);
+        let comps = w.prepare_computations(&i, &r, &is);
+        let color = w.shade_hit(&comps, 5);
+        let expected = Color::new(0.93391, 0.69643, 0.69243);
         assert_relative_eq!(color, expected, max_relative = 1e-4);
     }
 }
