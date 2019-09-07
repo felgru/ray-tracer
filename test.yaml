@@ -1,0 +1,101 @@
+- add: camera
+  width: 400
+  height: 200
+  field-of-view: pi / 3.
+  from: [0, 1.5, -5]
+  to: [0, 1, 0]
+  up: [0, 1, 0]
+
+- add: light
+  at: [-10, 10, -10]
+  intensity: [1, 1, 1]
+
+- define: material
+  name: floor
+  pattern:
+    type: checkers
+    color1: [1, 1, 1]
+    color2: [0.1, 0.1, 0.1]
+    # Slightly move the pattern up to prevent artifacts due
+    # to numerical inaccuracy.
+    transform:
+      - translate: [0, 0.5, 0]
+  specular: 0
+  reflective: 0.5
+
+- define: material
+  name: wall
+  pattern:
+    type: stripes
+    color1: [1, 0.9, 0.9]
+    color2: [0.8, 0.4, 0.4]
+  specular: 0
+
+- define: material
+  name: sphere
+  diffuse: 0.7
+  specular: 0.3
+
+- define: material
+  name: right sphere
+  extends: sphere
+  color: [0.5, 1, 0.1]
+
+- define: material
+  name: left sphere
+  extends: sphere
+  color: [1, 0.8, 0.1]
+
+- define: material
+  name: middle sphere
+  extends: sphere
+  pattern:
+    type: stripes
+    color1: [0.06, 0.6, 0.3]
+    color2: [0.02, 0.2, 0.1]
+    transform:
+      - scale: [0.2, 0.2, 0.2]
+      - rotate-y: pi / 8
+  ambient: 0.1
+  diffuse: 0.3
+  specular: 1
+  shininess: 300
+  reflective: 0.9
+  transparency: 0.9
+  refractive-index: 1.52
+
+- add: plane
+  material: floor
+
+# left wall
+- add: plane
+  material: wall
+  transform:
+    - rotate-x: pi / 2
+    - rotate-y: -pi / 4
+    - translate: [0, 0, 5]
+
+# right wall
+- add: plane
+  material: wall
+  transform:
+    - rotate-x: pi / 2
+    - rotate-y: pi / 4
+    - translate: [0, 0, 5]
+
+- add: sphere
+  material: middle sphere
+  transform:
+    - translate: [-0.5, 1, 0.5]
+
+- add: sphere
+  material: right sphere
+  transform:
+    - scale: [0.5, 0.5, 0.5]
+    - translate: [1.5, 0.5, -0.5]
+
+- add: sphere
+  material: left sphere
+  transform:
+    - scale: [0.33, 0.33, 0.33]
+    - translate: [-1.5, 0.33, -0.75]
