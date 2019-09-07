@@ -36,14 +36,16 @@ pub fn load_world_and_cameras_from_str(s: &str)
                     let sphere = load_sphere(&entry, &materials);
                     world.add_object(sphere);
                 },
-                _ => { // TODO: error
+                unknown => { // TODO: error
+                    println!("trying to add unknown object: {}", unknown);
                 }
             }
         } else if entry.as_hash().unwrap()
                        .contains_key(&Yaml::from_str("define")) {
             match entry["define"].as_str().unwrap() {
                 "material" => materials.parse(&entry),
-                _ => { // TODO: error
+                unknown => { // TODO: error
+                    println!("trying to define unknown property: {}", unknown);
                 }
             }
         } else {
@@ -99,8 +101,11 @@ fn load_shape_properties(shape: &mut Shape, entry: &Yaml,
                 let transform = parse_transform(&entry);
                 shape.set_transform(transform);
             },
-            _ => {
-                // TODO: unknown keyword
+            "add" => {
+                // ignore add: {shape_type}
+            },
+            unknown => {
+                println!("unknown shape parameter: {}", unknown);
             }
         }
     }
@@ -161,8 +166,8 @@ fn parse_transform(entry: &Yaml) -> Transform {
                 let angle = parse_f64_expression(trans);
                 transform = rotation_z(angle) * transform;
             },
-            _ => {
-                // TODO: unknown translation
+            unknown => {
+                println!("unknown transform: {}", unknown);
             }
         }
     }
@@ -269,8 +274,9 @@ fn parse_pattern(entry: &Yaml) -> Pattern {
             let color2 = parse_color(&entry["color2"]);
             Pattern::checkers(color1, color2)
         },
-        _ => {
+        unknown => {
             // TODO: raise error instead
+            println!("unknown pattern type: {}", unknown);
             Pattern::uniform(Color::black())
         },
     };
