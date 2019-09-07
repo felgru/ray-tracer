@@ -269,10 +269,20 @@ fn parse_pattern(entry: &Yaml) -> Pattern {
             let color2 = parse_color(&entry["color2"]);
             Pattern::stripes(color1, color2)
         },
+        "rings" => {
+            let color1 = parse_color(&entry["color1"]);
+            let color2 = parse_color(&entry["color2"]);
+            Pattern::rings(color1, color2)
+        },
         "checkers" => {
             let color1 = parse_color(&entry["color1"]);
             let color2 = parse_color(&entry["color2"]);
             Pattern::checkers(color1, color2)
+        },
+        "gradient" => {
+            let color1 = parse_color(&entry["color1"]);
+            let color2 = parse_color(&entry["color2"]);
+            Pattern::gradient(color1, color2)
         },
         unknown => {
             // TODO: raise error instead
