@@ -75,46 +75,35 @@ fn load_light(entry: &Yaml) -> PointLight {
 
 fn load_sphere(entry: &Yaml, materials: &MaterialStore) -> Shape {
     let mut sphere = Shape::sphere();
-    for (key, entry) in entry.as_hash().unwrap().iter() {
-        match key.as_str().unwrap() {
-            "type" => {},
-            "material" => {
-                let material = entry.as_str().unwrap();
-                let material = materials[material];
-                sphere.set_material(material);
-            },
-            "transform" => {
-                let transform = parse_transform(&entry);
-                sphere.set_transform(transform);
-            },
-            _ => {
-                // TODO: unknown keyword
-            }
-        }
-    }
+    load_shape_properties(&mut sphere, entry, materials);
     sphere
 }
 
 fn load_plane(entry: &Yaml, materials: &MaterialStore) -> Shape {
     let mut plane = Shape::plane();
+    load_shape_properties(&mut plane, entry, materials);
+    plane
+}
+
+fn load_shape_properties(shape: &mut Shape, entry: &Yaml,
+                         materials: &MaterialStore) {
     for (key, entry) in entry.as_hash().unwrap().iter() {
         match key.as_str().unwrap() {
             "type" => {},
             "material" => {
                 let material = entry.as_str().unwrap();
                 let material = materials[material];
-                plane.set_material(material);
+                shape.set_material(material);
             },
             "transform" => {
                 let transform = parse_transform(&entry);
-                plane.set_transform(transform);
+                shape.set_transform(transform);
             },
             _ => {
                 // TODO: unknown keyword
             }
         }
     }
-    plane
 }
 
 fn parse_point(entry: &Yaml) -> Point {
