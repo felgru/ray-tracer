@@ -1,3 +1,4 @@
+mod cube;
 mod sphere;
 mod plane;
 
@@ -23,6 +24,10 @@ impl Shape {
 
     pub fn plane() -> Self {
         Self::new(ShapeTypeMarker::Plane)
+    }
+
+    pub fn cube() -> Self {
+        Self::new(ShapeTypeMarker::Cube)
     }
 
     pub fn intersect(&self, ray: &Ray) -> Vec<f64> {
@@ -54,6 +59,7 @@ impl Shape {
         match self.shape_type {
             ShapeTypeMarker::Sphere => &sphere::SPHERE,
             ShapeTypeMarker::Plane => &plane::PLANE,
+            ShapeTypeMarker::Cube => &cube::CUBE,
         }
     }
 
@@ -83,6 +89,7 @@ pub struct ShapeData {
 pub enum ShapeTypeMarker {
     Sphere,
     Plane,
+    Cube,
 }
 
 pub trait ShapeType {

@@ -36,6 +36,10 @@ pub fn load_world_and_cameras_from_str(s: &str)
                     let sphere = load_sphere(&entry, &materials);
                     world.add_object(sphere);
                 },
+                "cube" => {
+                    let cube = load_cube(&entry, &materials);
+                    world.add_object(cube);
+                },
                 unknown => { // TODO: error
                     println!("trying to add unknown object: {}", unknown);
                 }
@@ -85,6 +89,12 @@ fn load_plane(entry: &Yaml, materials: &MaterialStore) -> Shape {
     let mut plane = Shape::plane();
     load_shape_properties(&mut plane, entry, materials);
     plane
+}
+
+fn load_cube(entry: &Yaml, materials: &MaterialStore) -> Shape {
+    let mut cube = Shape::cube();
+    load_shape_properties(&mut cube, entry, materials);
+    cube
 }
 
 fn load_shape_properties(shape: &mut Shape, entry: &Yaml,

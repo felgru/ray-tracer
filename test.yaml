@@ -37,7 +37,7 @@
   specular: 0.3
 
 - define: material
-  name: right sphere
+  name: right cube
   extends: sphere
   color: [0.5, 1, 0.1]
 
@@ -88,10 +88,11 @@
   transform:
     - translate: [-0.5, 1, 0.5]
 
-- add: sphere
-  material: right sphere
+- add: cube
+  material: right cube
   transform:
     - scale: [0.5, 0.5, 0.5]
+    - rotate-y: pi / 4
     - translate: [1.5, 0.5, -0.5]
 
 - add: sphere
