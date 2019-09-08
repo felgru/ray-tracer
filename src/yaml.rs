@@ -346,10 +346,6 @@ fn parse_f64_const(w: &str) -> f64 {
 mod tests {
     use super::*;
 
-    use crate::color::Color;
-    use crate::geometry::*;
-    use crate::world::default_world;
-
     #[test]
     fn loading_a_camera() {
         let s = "
