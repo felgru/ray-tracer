@@ -38,12 +38,26 @@ impl Intersections {
         self.intersections.sort_by(|a, b| a.t.partial_cmp(&b.t).unwrap());
     }
 
+    pub fn add_intersections_from(&mut self, intersections: Self) {
+        self.intersections.extend(intersections);
+        self.intersections.sort_by(|a, b| a.t.partial_cmp(&b.t).unwrap());
+    }
+
     pub fn iter(&self) -> std::slice::Iter<Intersection> {
         self.intersections.iter()
     }
 
     pub fn len(&self) -> usize {
         self.intersections.len()
+    }
+}
+
+impl IntoIterator for Intersections {
+    type Item = Intersection;
+    type IntoIter = ::std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.intersections.into_iter()
     }
 }
 

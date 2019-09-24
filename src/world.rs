@@ -3,10 +3,10 @@ use crate::geometry::{Point, reflect, Vector};
 use crate::intersections::{Intersection, Intersections};
 use crate::light::PointLight;
 use crate::rays::Ray;
-use crate::shapes::Shape;
+use crate::group::Object;
 
 pub struct World {
-    objects: Vec<Shape>,
+    objects: Vec<Object>,
     lights: Vec<PointLight>,
 }
 
@@ -18,8 +18,8 @@ impl World {
         }
     }
 
-    pub fn add_object(&mut self, obj: Shape) -> usize {
-        self.objects.push(obj);
+    pub fn add_object<O: Into<Object>>(&mut self, obj: O) -> usize {
+        self.objects.push(obj.into());
         self.objects.len() - 1
     }
 
@@ -28,7 +28,7 @@ impl World {
         self.lights.len() - 1
     }
 
-    pub fn get_object(&self, i: usize) -> &Shape {
+    pub fn get_object(&self, i: usize) -> &Object {
         &self.objects[i]
     }
 
@@ -50,7 +50,8 @@ impl World {
     fn intersect(&self, ray: &Ray) -> Intersections {
         let mut intersections = Intersections::new();
         for (i, obj) in self.objects.iter().enumerate() {
-            intersections.add_intersections(i, obj.intersect(ray));
+            let is = obj.intersect(ray, i, &self.objects);
+            intersections.add_intersections_from(is);
         }
         intersections
     }
@@ -69,7 +70,8 @@ impl World {
                                           &comps.point,
                                           &comps.eyev,
                                           &comps.normalv,
-                                          self.is_shadowed(&comps.over_point, l));
+                                          self.is_shadowed(&comps.over_point, l),
+                                          &self.objects);
         let surface = self.lights.iter().map(lighting).sum::<Color>();
 
         let reflected = self.reflected_color(comps, remaining);
@@ -143,7 +145,7 @@ impl World {
 
 struct PreparedComputations<'a> {
     pub t: f64,
-    pub object: &'a Shape,
+    pub object: &'a Object,
     pub point: Point,
     pub over_point: Point,
     pub under_point: Point,
@@ -161,7 +163,7 @@ impl<'a> PreparedComputations<'a> {
         let point = ray.position(hit.t);
         let object = world.get_object(hit.object_index);
         let eyev = -ray.direction;
-        let mut normalv = object.normal_at(&point);
+        let mut normalv = object.normal_at(&point, &world.objects);
         let inside;
         if normalv.dot(&eyev) < 0. {
             inside = true;
@@ -262,6 +264,7 @@ pub fn default_world() -> World {
     let intensity = Color::white();
     let light = PointLight::new(Point::new(-10., 10., -10.),
                                 intensity);
+    use crate::shapes::Shape;
     let mut s1 = Shape::sphere();
     let m = {
         let c = Color::new(0.8, 1., 0.6);
@@ -293,6 +296,7 @@ mod tests {
     use crate::geometry::*;
     use crate::material::Material;
     use crate::patterns::Pattern;
+    use crate::shapes::Shape;
 
     #[test]
     fn create_a_world() {
