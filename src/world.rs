@@ -1,7 +1,6 @@
-use std::ops::Index;
-
 use crate::color::Color;
 use crate::geometry::{Point, reflect, Vector};
+use crate::intersections::{Intersection, Intersections};
 use crate::light::PointLight;
 use crate::rays::Ray;
 use crate::shapes::Shape;
@@ -139,53 +138,6 @@ impl World {
             Some(i) => i.t < distance,
             None    => false,
         }
-    }
-}
-
-#[derive(Copy, Clone, PartialEq)]
-struct Intersection {
-    pub t: f64,
-    pub object_index: usize,
-}
-
-impl Intersection {
-    pub fn new(t: f64, object_index: usize) -> Self {
-        Self{t, object_index}
-    }
-}
-
-struct Intersections {
-    intersections: Vec<Intersection>,
-}
-
-impl Intersections {
-    pub fn new(intersections: Vec<Intersection>) -> Self {
-        let mut intersections = intersections;
-        intersections.sort_by(|a, b| a.t.partial_cmp(&b.t).unwrap());
-        Intersections {
-            intersections
-        }
-    }
-
-    pub fn hit(&self) -> Option<Intersection> {
-        self.intersections.iter().find(|i| i.t >= 0.).map(|&i| i)
-    }
-
-    pub fn add_intersections(&mut self, obj_index: usize, intersections: Vec<f64>) {
-        self.intersections.extend(intersections.into_iter().map(|t| Intersection::new(t, obj_index)));
-        self.intersections.sort_by(|a, b| a.t.partial_cmp(&b.t).unwrap());
-    }
-
-    pub fn iter(&self) -> std::slice::Iter<Intersection> {
-        self.intersections.iter()
-    }
-}
-
-impl Index<usize> for Intersections {
-    type Output = Intersection;
-
-    fn index(&self, i: usize) -> &Intersection {
-        &self.intersections[i]
     }
 }
 
@@ -343,62 +295,6 @@ mod tests {
     use crate::patterns::Pattern;
 
     #[test]
-    fn intersection_properties() {
-        let i = Intersection::new(3.5, 0);
-        assert_eq!(i.t, 3.5);
-        assert_eq!(i.object_index, 0);
-    }
-
-    #[test]
-    fn aggregating_intersections() {
-        let i1 = Intersection::new(1., 0);
-        let i2 = Intersection::new(2., 0);
-        let xs = Intersections::new(vec![i1, i2]);
-        assert_eq!(xs.intersections.len(), 2);
-        assert_eq!(xs[0].t, 1.);
-        assert_eq!(xs[1].t, 2.);
-    }
-
-    #[test]
-    fn hit_when_all_intersections_have_positive_t() {
-        let i1 = Intersection::new(1., 0);
-        let i2 = Intersection::new(2., 0);
-        let xs = Intersections::new(vec![i2, i1]);
-        let i = xs.hit().unwrap();
-        assert_eq!(i.t, 1.);
-        assert_eq!(i.object_index, 0);
-    }
-
-    #[test]
-    fn hit_when_some_intersections_have_negative_t() {
-        let i1 = Intersection::new(-1., 0);
-        let i2 = Intersection::new(1., 0);
-        let xs = Intersections::new(vec![i2, i1]);
-        let i = xs.hit().unwrap();
-        assert_eq!(i.t, 1.);
-        assert_eq!(i.object_index, 0);
-    }
-
-    #[test]
-    fn hit_when_all_intersections_have_negative_t() {
-        let i1 = Intersection::new(-2., 0);
-        let i2 = Intersection::new(-1., 0);
-        let xs = Intersections::new(vec![i2, i1]);
-        let i = xs.hit();
-        assert!(i.is_none());
-    }
-
-    #[test]
-    fn hit_is_always_lowest_nonnegative_intersection() {
-        let intersections: Vec<Intersection>
-            = [5., 7., -3., 2.].into_iter()
-                               .map(|&t| Intersection::new(t, 0)).collect();
-        let xs = Intersections::new(intersections);
-        let i = xs.hit().unwrap();
-        assert_eq!(i.t, 2.);
-    }
-
-    #[test]
     fn create_a_world() {
         let w = World::new();
         assert!(w.objects.is_empty());
@@ -423,7 +319,7 @@ mod tests {
         let w = default_world();
         let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
         let xs = w.intersect(&r);
-        assert_eq!(xs.intersections.len(), 4);
+        assert_eq!(xs.len(), 4);
         assert_eq!(xs[0].t, 4.);
         assert_eq!(xs[1].t, 4.5);
         assert_eq!(xs[2].t, 5.5);

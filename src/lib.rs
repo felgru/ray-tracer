@@ -9,6 +9,7 @@ pub mod camera;
 pub mod canvas;
 pub mod color;
 pub mod geometry;
+pub mod intersections;
 pub mod light;
 pub mod material;
 pub mod patterns;
