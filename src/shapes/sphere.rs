@@ -1,6 +1,7 @@
 use crate::geometry::{Point, Vector};
 use crate::rays::Ray;
 
+use super::bounds::Bounds;
 use super::ShapeType;
 
 pub struct Sphere {}
@@ -28,6 +29,10 @@ impl ShapeType for Sphere {
 
     fn local_normal_at(&self, point: &Point) -> Vector {
         point - Point::new(0., 0., 0.)
+    }
+
+    fn local_bounds(&self) -> Bounds {
+        Bounds::new(Point::new(-1., -1., -1.), Point::new(1., 1., 1.))
     }
 }
 

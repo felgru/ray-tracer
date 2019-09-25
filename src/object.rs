@@ -5,6 +5,7 @@ use crate::intersections::Intersections;
 use crate::light::PointLight;
 use crate::material::Material;
 use crate::rays::Ray;
+use crate::shapes::bounds::Bounds;
 use crate::shapes::Shape;
 
 pub struct Object {
@@ -54,6 +55,14 @@ impl Object {
                 intersections
             }
             Group(grp) => grp.intersect(ray, objects),
+        }
+    }
+
+    pub fn local_bounds(&self) -> Bounds {
+        use ObjectData::*;
+        match &self.object {
+            Shape(shp) => shp.local_bounds(),
+            Group(grp) => grp.local_bounds(),
         }
     }
 

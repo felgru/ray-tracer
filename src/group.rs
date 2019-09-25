@@ -1,26 +1,35 @@
-use crate::geometry::{identity, Transform};
+use crate::geometry::{identity, Point, Transform};
 use crate::intersections::Intersections;
 use crate::object::{Object, ObjectData};
 use crate::rays::Ray;
+use crate::shapes::bounds::Bounds;
 
 pub struct Group {
     pub index: usize,
     pub children: Vec<usize>,
     pub transform: Transform,
+    bounds: Bounds,
 }
 
 impl Group {
     pub fn new(index: usize) -> Self {
+        let nan = std::f64::NAN;
         Group {
             index: index,
             children: Vec::new(),
             transform: identity(),
+            bounds: Bounds::new(Point::new(nan, nan, nan),
+                                Point::new(nan, nan, nan)),
         }
     }
 
     pub fn add_child(&mut self, i: usize, objects: &mut Vec<Object>) {
-        objects[i].parent = self.index;
         self.children.push(i);
+        let mut object = &mut objects[i];
+        object.parent = self.index;
+        let object_bounds = Bounds::from_points(
+            &object.local_bounds().global_corners(object.get_transform()));
+        self.bounds.merge_bounds(&object_bounds);
     }
 
     pub fn get_child<'a>(&self, i: usize, objects: &'a Vec<Object>) -> &'a Object {
@@ -36,6 +45,9 @@ impl Group {
     pub fn local_intersect(&self, ray: &Ray, objects: &Vec<Object>)
                                                             -> Intersections {
         let mut intersections = Intersections::new();
+        if !self.bounds.intersects(ray) {
+            return intersections
+        }
         for &i in self.children.iter() {
             let obj = &objects[i];
             match &obj.object {
@@ -49,6 +61,10 @@ impl Group {
             }
         }
         intersections
+    }
+
+    pub fn local_bounds(&self) -> Bounds {
+        self.bounds.clone()
     }
 }
 
@@ -122,5 +138,33 @@ mod tests {
         let r = Ray::new(Point::new(10., 0., -10.), Vector::new(0., 0., 1.));
         let is = g.intersect(&r, &objects);
         assert_eq!(is.len(), 2);
+    }
+
+    #[test]
+    fn bounding_box_of_group_with_a_single_object() {
+        let mut g = Group::new(3);
+        g.transform = scaling(2., 2., 2.);
+        let mut objects: Vec<Object> = Vec::new();
+        objects.push(Shape::sphere().into());
+        g.add_child(0, &mut objects);
+        let b = g.local_bounds();
+        assert_relative_eq!(b, Bounds::new(Point::new(-1., -1., -1.),
+                                           Point::new(1., 1., 1.)));
+    }
+
+    #[test]
+    fn bounding_box_of_group_with_two_objects() {
+        let mut g = Group::new(3);
+        g.transform = scaling(2., 2., 2.);
+        let mut objects: Vec<Object> = Vec::new();
+        objects.push(Shape::sphere().into());
+        let mut s = Shape::sphere();
+        s.set_transform(translation(&Vector::new(5., 0., 0.)));
+        objects.push(s.into());
+        g.add_child(0, &mut objects);
+        g.add_child(1, &mut objects);
+        let b = g.local_bounds();
+        assert_relative_eq!(b, Bounds::new(Point::new(-1., -1., -1.),
+                                           Point::new(6., 1., 1.)));
     }
 }

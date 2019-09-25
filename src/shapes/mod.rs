@@ -1,7 +1,9 @@
+pub mod bounds;
 mod cube;
 mod sphere;
 mod plane;
 
+use bounds::Bounds;
 use crate::geometry::{identity, Point, Transform, Vector};
 use crate::material::Material;
 use crate::rays::Ray;
@@ -36,6 +38,11 @@ impl Shape {
     pub fn local_normal_at(&self, local_point: &Point) -> Vector {
         let shape_type = self.get_shape_type();
         shape_type.local_normal_at(&local_point)
+    }
+
+    pub fn local_bounds(&self) -> Bounds {
+        let shape_type = self.get_shape_type();
+        shape_type.local_bounds()
     }
 
     fn get_shape_type(&self) -> &'static dyn ShapeType {
@@ -78,6 +85,7 @@ pub enum ShapeTypeMarker {
 pub trait ShapeType {
     fn local_intersect(&self, ray: &Ray) -> Vec<f64>;
     fn local_normal_at(&self, point: &Point) -> Vector;
+    fn local_bounds(&self) -> Bounds;
 }
 
 impl ShapeData {

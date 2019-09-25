@@ -1,6 +1,7 @@
 use crate::geometry::{Point, Vector};
 use crate::rays::Ray;
 
+use super::bounds::Bounds;
 use super::ShapeType;
 
 pub struct Plane {}
@@ -19,6 +20,12 @@ impl ShapeType for Plane {
 
     fn local_normal_at(&self, _point: &Point) -> Vector {
         Vector::new(0., 1., 0.)
+    }
+
+    fn local_bounds(&self) -> Bounds {
+        let infty = std::f64::INFINITY;
+        Bounds::new(Point::new(-infty, 0., -infty),
+                    Point::new(infty, 0., infty))
     }
 }
 

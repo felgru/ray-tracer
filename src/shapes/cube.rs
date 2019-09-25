@@ -3,6 +3,7 @@ use std::mem;
 use crate::geometry::{Point, Vector};
 use crate::rays::Ray;
 
+use super::bounds::Bounds;
 use super::ShapeType;
 
 pub struct Cube {}
@@ -35,6 +36,10 @@ impl ShapeType for Cube {
         } else {
             Vector::new(0., 0., point[2])
         }
+    }
+
+    fn local_bounds(&self) -> Bounds {
+        Bounds::new(Point::new(-1., -1., -1.), Point::new(1., 1., 1.))
     }
 }
 
