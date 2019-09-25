@@ -3,7 +3,7 @@ use crate::geometry::{Point, reflect, Vector};
 use crate::intersections::{Intersection, Intersections};
 use crate::light::PointLight;
 use crate::rays::Ray;
-use crate::group::Object;
+use crate::object::Object;
 
 pub struct World {
     objects: Vec<Object>,

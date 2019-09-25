@@ -13,6 +13,7 @@ pub mod group;
 pub mod intersections;
 pub mod light;
 pub mod material;
+pub mod object;
 pub mod patterns;
 pub mod rays;
 pub mod shapes;
