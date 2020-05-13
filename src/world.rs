@@ -125,7 +125,7 @@ impl World {
     fn reflected_color(&self, comps: &PreparedComputations,
                        remaining: usize) -> Color {
         let reflectivity = comps.object.get_material().shader.reflective;
-        if remaining <= 0 || reflectivity == 0. {
+        if remaining == 0 || reflectivity == 0. {
             return Color::black();
         }
 
