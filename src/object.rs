@@ -64,7 +64,7 @@ impl Object {
         }
     }
 
-    pub fn parent<'a>(&self) -> Option<Group> {
+    pub fn parent(&self) -> Option<Group> {
         if self.parent.index != std::usize::MAX {
             Some(self.parent)
         } else {
