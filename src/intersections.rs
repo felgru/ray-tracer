@@ -30,7 +30,7 @@ impl Intersections {
     }
 
     pub fn hit(&self) -> Option<Intersection> {
-        self.intersections.iter().find(|i| i.t >= 0.).map(|&i| i)
+        self.intersections.iter().find(|i| i.t >= 0.).copied()
     }
 
     pub fn add_intersections(&mut self, obj_index: usize, intersections: Vec<f64>) {
