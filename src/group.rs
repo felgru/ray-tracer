@@ -139,16 +139,15 @@ impl Group {
     }
 
     pub fn local_bounds(&self, groups: &Groups) -> Bounds {
-        groups.bounds(*self).clone()
+        *groups.bounds(*self)
     }
 
     pub fn world_to_object(&self, p: &Point, groups: &Groups) -> Point {
         let p = match self.parent(groups) {
             Some(parent) => parent.world_to_object(&p, groups),
-            None => p.clone(),
+            None => *p,
         };
-        let p = groups.transform(*self).inverse() * p;
-        p
+        groups.transform(*self).inverse() * p
     }
 
     pub fn normal_to_world(&self, n: &Vector, groups: &Groups) -> Vector {

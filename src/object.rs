@@ -113,7 +113,7 @@ impl Object {
     pub fn world_to_object(&self, p: &Point, groups: &Groups) -> Point {
         let p = match self.parent() {
             Some(parent) => parent.world_to_object(&p, groups),
-            None => p.clone(),
+            None => *p,
         };
         self.get_transform(groups).inverse() * p
     }
