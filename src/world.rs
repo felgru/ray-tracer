@@ -217,16 +217,16 @@ impl<'a> PreparedComputations<'a> {
                                                        intersections);
         PreparedComputations{
             t: hit.t,
-            object: object,
-            point: point,
-            over_point: over_point,
-            under_point: under_point,
-            eyev: eyev,
-            normalv: normalv,
+            object,
+            point,
+            over_point,
+            under_point,
+            eyev,
+            normalv,
             reflectv: reflect(&ray.direction, &normalv),
             n1,
             n2,
-            inside: inside,
+            inside,
         }
     }
 

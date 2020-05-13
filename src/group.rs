@@ -88,7 +88,7 @@ impl Group {
                                        Point::new(nan, nan, nan)));
         let index = groups.bounds.len() - 1;
         Group {
-            index: index,
+            index,
         }
     }
 
