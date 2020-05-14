@@ -44,7 +44,7 @@ impl Object {
     }
 
     pub fn intersect(&self, ray: &Ray, obj_id: usize,
-                     objects: &Vec<Object>, groups: &Groups) -> Intersections {
+                     objects: &[Object], groups: &Groups) -> Intersections {
         use ObjectData::*;
         match &self.object {
             Shape(shp) => {
@@ -64,7 +64,7 @@ impl Object {
         }
     }
 
-    pub fn parent<'a>(&self) -> Option<Group> {
+    pub fn parent(&self) -> Option<Group> {
         if self.parent.index != std::usize::MAX {
             Some(self.parent)
         } else {
@@ -113,7 +113,7 @@ impl Object {
     pub fn world_to_object(&self, p: &Point, groups: &Groups) -> Point {
         let p = match self.parent() {
             Some(parent) => parent.world_to_object(&p, groups),
-            None => p.clone(),
+            None => *p,
         };
         self.get_transform(groups).inverse() * p
     }

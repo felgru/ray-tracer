@@ -30,7 +30,7 @@ impl Intersections {
     }
 
     pub fn hit(&self) -> Option<Intersection> {
-        self.intersections.iter().find(|i| i.t >= 0.).map(|&i| i)
+        self.intersections.iter().find(|i| i.t >= 0.).copied()
     }
 
     pub fn add_intersections(&mut self, obj_index: usize, intersections: Vec<f64>) {
@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn hit_is_always_lowest_nonnegative_intersection() {
         let intersections: Vec<Intersection>
-            = [5., 7., -3., 2.].into_iter()
+            = [5., 7., -3., 2.].iter()
                                .map(|&t| Intersection::new(t, 0)).collect();
         let xs = Intersections::from_vec(intersections);
         let i = xs.hit().unwrap();

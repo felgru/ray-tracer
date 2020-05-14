@@ -17,8 +17,8 @@ impl Bounds {
     }
 
     pub fn from_points(points: &Vec<Point>) -> Self {
-        let mut min = points[0].clone();
-        let mut max = points[1].clone();
+        let mut min = points[0];
+        let mut max = points[1];
 
         for p in points[1..].iter() {
             for i in 0..3 {

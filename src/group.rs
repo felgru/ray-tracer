@@ -32,7 +32,7 @@ impl Groups {
     }
 
     pub fn add_child_to_group(&mut self, i: usize, group: Group,
-                              objects: &mut Vec<Object>) {
+                              objects: &mut [Object]) {
         self.children_mut(group).push(i);
         let mut object = &mut objects[i];
         object.parent = group;
@@ -88,7 +88,7 @@ impl Group {
                                        Point::new(nan, nan, nan)));
         let index = groups.bounds.len() - 1;
         Group {
-            index: index,
+            index,
         }
     }
 
@@ -96,7 +96,7 @@ impl Group {
         Group {index: i}
     }
 
-    pub fn get_child<'a, 'b>(&self, i: usize, objects: &'a Vec<Object>,
+    pub fn get_child<'a, 'b>(&self, i: usize, objects: &'a [Object],
                              groups: &'b Groups) -> &'a Object {
         &objects[groups.children(*self)[i]]
     }
@@ -110,14 +110,14 @@ impl Group {
         }
     }
 
-    pub fn intersect(&self, ray: &Ray, objects: &Vec<Object>, groups: &Groups)
+    pub fn intersect(&self, ray: &Ray, objects: &[Object], groups: &Groups)
                                                             -> Intersections {
         let transform = groups.transform(*self);
         let local_ray = ray.transform(&transform.inverse());
         self.local_intersect(&local_ray, objects, groups)
     }
 
-    pub fn local_intersect(&self, ray: &Ray, objects: &Vec<Object>,
+    pub fn local_intersect(&self, ray: &Ray, objects: &[Object],
                            groups: &Groups) -> Intersections {
         let mut intersections = Intersections::new();
         if !groups.bounds(*self).intersects(ray) {
@@ -139,16 +139,15 @@ impl Group {
     }
 
     pub fn local_bounds(&self, groups: &Groups) -> Bounds {
-        groups.bounds(*self).clone()
+        *groups.bounds(*self)
     }
 
     pub fn world_to_object(&self, p: &Point, groups: &Groups) -> Point {
         let p = match self.parent(groups) {
             Some(parent) => parent.world_to_object(&p, groups),
-            None => p.clone(),
+            None => *p,
         };
-        let p = groups.transform(*self).inverse() * p;
-        p
+        groups.transform(*self).inverse() * p
     }
 
     pub fn normal_to_world(&self, n: &Vector, groups: &Groups) -> Vector {
