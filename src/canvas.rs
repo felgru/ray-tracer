@@ -1,5 +1,4 @@
 use crate::color::Color;
-use std::io;
 use std::path::Path;
 
 pub struct Canvas {
@@ -33,7 +32,8 @@ impl Canvas {
         self.data[x + y * self.width]
     }
 
-    pub fn write_image<P: AsRef<Path>>(&self, path: &P) -> io::Result<()> {
+    pub fn write_image<P: AsRef<Path>>(&self, path: &P)
+                                -> Result<(), image::ImageError> {
         let img = self.to_image();
         img.save(path)
     }
