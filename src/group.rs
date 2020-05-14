@@ -32,7 +32,7 @@ impl Groups {
     }
 
     pub fn add_child_to_group(&mut self, i: usize, group: Group,
-                              objects: &mut Vec<Object>) {
+                              objects: &mut [Object]) {
         self.children_mut(group).push(i);
         let mut object = &mut objects[i];
         object.parent = group;
@@ -96,7 +96,7 @@ impl Group {
         Group {index: i}
     }
 
-    pub fn get_child<'a, 'b>(&self, i: usize, objects: &'a Vec<Object>,
+    pub fn get_child<'a, 'b>(&self, i: usize, objects: &'a [Object],
                              groups: &'b Groups) -> &'a Object {
         &objects[groups.children(*self)[i]]
     }
@@ -110,14 +110,14 @@ impl Group {
         }
     }
 
-    pub fn intersect(&self, ray: &Ray, objects: &Vec<Object>, groups: &Groups)
+    pub fn intersect(&self, ray: &Ray, objects: &[Object], groups: &Groups)
                                                             -> Intersections {
         let transform = groups.transform(*self);
         let local_ray = ray.transform(&transform.inverse());
         self.local_intersect(&local_ray, objects, groups)
     }
 
-    pub fn local_intersect(&self, ray: &Ray, objects: &Vec<Object>,
+    pub fn local_intersect(&self, ray: &Ray, objects: &[Object],
                            groups: &Groups) -> Intersections {
         let mut intersections = Intersections::new();
         if !groups.bounds(*self).intersects(ray) {

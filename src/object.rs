@@ -44,7 +44,7 @@ impl Object {
     }
 
     pub fn intersect(&self, ray: &Ray, obj_id: usize,
-                     objects: &Vec<Object>, groups: &Groups) -> Intersections {
+                     objects: &[Object], groups: &Groups) -> Intersections {
         use ObjectData::*;
         match &self.object {
             Shape(shp) => {
