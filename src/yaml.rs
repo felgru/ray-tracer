@@ -6,6 +6,7 @@ use crate::camera::Camera;
 use crate::color::Color;
 use crate::geometry::{identity, Point, rotation_x, rotation_y, rotation_z, scaling, Transform,
                       translation, Vector, view_transform};
+use crate::group::Group;
 use crate::light::PointLight;
 use crate::material::Material;
 use crate::patterns::Pattern;
@@ -20,6 +21,7 @@ pub fn load_world_and_cameras_from_str(s: &str)
     let mut world = World::new();
     let mut cameras = Vec::<Camera>::new();
     let mut materials = MaterialStore::new();
+    let mut groups = GroupStore::new();
     for entry in doc.as_vec().unwrap() {
         if entry.as_hash().unwrap().contains_key(&Yaml::from_str("add")) {
             match entry["add"].as_str().unwrap() {
@@ -29,16 +31,28 @@ pub fn load_world_and_cameras_from_str(s: &str)
                     world.add_light(light);
                 },
                 "plane" => {
-                    let plane = load_plane(&entry, &materials);
-                    world.add_object(plane);
+                    let (plane, group) = load_plane(&entry, &materials, &groups);
+                    if let Some(group) = group {
+                        world.add_object_to_group(plane, group);
+                    } else {
+                        world.add_object(plane);
+                    }
                 },
                 "sphere" => {
-                    let sphere = load_sphere(&entry, &materials);
-                    world.add_object(sphere);
+                    let (sphere, group) = load_sphere(&entry, &materials, &groups);
+                    if let Some(group) = group {
+                        world.add_object_to_group(sphere, group);
+                    } else {
+                        world.add_object(sphere);
+                    }
                 },
                 "cube" => {
-                    let cube = load_cube(&entry, &materials);
-                    world.add_object(cube);
+                    let (cube, group) = load_cube(&entry, &materials, &groups);
+                    if let Some(group) = group {
+                        world.add_object_to_group(cube, group);
+                    } else {
+                        world.add_object(cube);
+                    }
                 },
                 unknown => { // TODO: error
                     println!("trying to add unknown object: {}", unknown);
@@ -48,6 +62,7 @@ pub fn load_world_and_cameras_from_str(s: &str)
                        .contains_key(&Yaml::from_str("define")) {
             match entry["define"].as_str().unwrap() {
                 "material" => materials.parse(&entry),
+                "group" => groups.parse(&entry, &mut world),
                 unknown => { // TODO: error
                     println!("trying to define unknown property: {}", unknown);
                 }
@@ -79,26 +94,31 @@ fn load_light(entry: &Yaml) -> PointLight {
     PointLight::new(position, color)
 }
 
-fn load_sphere(entry: &Yaml, materials: &MaterialStore) -> Shape {
+fn load_sphere(entry: &Yaml, materials: &MaterialStore, groups: &GroupStore)
+                                    -> (Shape, Option<Group>) {
     let mut sphere = Shape::sphere();
-    load_shape_properties(&mut sphere, entry, materials);
-    sphere
+    let group = load_shape_properties(&mut sphere, entry, materials, groups);
+    (sphere, group)
 }
 
-fn load_plane(entry: &Yaml, materials: &MaterialStore) -> Shape {
+fn load_plane(entry: &Yaml, materials: &MaterialStore, groups: &GroupStore)
+                                    -> (Shape, Option<Group>) {
     let mut plane = Shape::plane();
-    load_shape_properties(&mut plane, entry, materials);
-    plane
+    let group = load_shape_properties(&mut plane, entry, materials, groups);
+    (plane, group)
 }
 
-fn load_cube(entry: &Yaml, materials: &MaterialStore) -> Shape {
+fn load_cube(entry: &Yaml, materials: &MaterialStore, groups: &GroupStore)
+                                    -> (Shape, Option<Group>) {
     let mut cube = Shape::cube();
-    load_shape_properties(&mut cube, entry, materials);
-    cube
+    let group = load_shape_properties(&mut cube, entry, materials, groups);
+    (cube, group)
 }
 
 fn load_shape_properties(shape: &mut Shape, entry: &Yaml,
-                         materials: &MaterialStore) {
+                         materials: &MaterialStore,
+                         groups: &GroupStore) -> Option<Group> {
+    let mut group = None;
     for (key, entry) in entry.as_hash().unwrap().iter() {
         match key.as_str().unwrap() {
             "type" => {},
@@ -111,6 +131,10 @@ fn load_shape_properties(shape: &mut Shape, entry: &Yaml,
                 let transform = parse_transform(&entry);
                 shape.set_transform(transform);
             },
+            "group" => {
+                let name = entry.as_str().unwrap();
+                group = Some(groups[name]);
+            },
             "add" => {
                 // ignore add: {shape_type}
             },
@@ -119,6 +143,7 @@ fn load_shape_properties(shape: &mut Shape, entry: &Yaml,
             }
         }
     }
+    group
 }
 
 fn parse_point(entry: &Yaml) -> Point {
@@ -182,6 +207,71 @@ fn parse_transform(entry: &Yaml) -> Transform {
         }
     }
     transform
+}
+
+struct GroupStore {
+    groups: HashMap<String, Group>,
+}
+
+impl GroupStore {
+    fn new() -> Self {
+        GroupStore{ groups: HashMap::new() }
+    }
+
+    fn add(&mut self, name: &str, group: Group) {
+        self.groups.insert(name.to_string(), group);
+    }
+
+    fn parse(&mut self, entry: &Yaml, world: &mut World) {
+        let entry = entry.as_hash().unwrap();
+        let mut name: Option<&str> = None;
+        let mut parent: Option<Group> = None;
+        let mut transform: Option<Transform> = None;
+        for (key, entry) in entry.iter() {
+            match key.as_str().unwrap() {
+                "name" => {
+                    name = entry.as_str();
+                },
+                "parent" => {
+                    // TODO: guard against lookup errors
+                    let name = entry.as_str().unwrap();
+                    parent = Some(self.groups[name]);
+                },
+                "transform" => {
+                    transform = Some(parse_transform(&entry));
+                },
+                "define" => {
+                    // ignore define: group
+                },
+                unknown => {
+                    // TODO: unknown keyword
+                    println!("unknown group parameter: {}", unknown);
+                }
+            }
+        }
+        let (group, index) =
+            if let Some(parent) = parent {
+                world.add_subgroup(parent)
+            } else {
+                world.add_group()
+            };
+        if let Some(transform) = transform {
+            world.set_transform_of(index, transform);
+        }
+        if let Some(name) = name {
+            self.add(name, group);
+        } else {
+            // TODO: group has no name
+        }
+    }
+}
+
+impl Index<&str> for GroupStore {
+    type Output = Group;
+
+    fn index(&self, idx: &str) -> &Group {
+        &self.groups[idx]
+    }
 }
 
 struct MaterialStore {
