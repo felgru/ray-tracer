@@ -31,6 +31,10 @@ impl Groups {
         self.children.len()
     }
 
+    pub fn add_group(&mut self) -> Group {
+        Group::new(self)
+    }
+
     pub fn add_child_to_group(&mut self, i: usize, group: Group,
                               objects: &mut [Object]) {
         self.children_mut(group).push(i);
@@ -79,7 +83,7 @@ impl Groups {
 }
 
 impl Group {
-    pub fn new(groups: &mut Groups) -> Self {
+    fn new(groups: &mut Groups) -> Self {
         let nan = std::f64::NAN;
         groups.children.push(Vec::new());
         groups.parents.push(Group::with_index(std::usize::MAX));
@@ -175,7 +179,7 @@ mod tests {
     #[test]
     fn creating_an_empty_group() {
         let mut groups = Groups::new();
-        let g = Group::new(&mut groups);
+        let g = groups.add_group();
         assert_eq!(g.index, 0);
         assert_relative_eq!(groups.transform(g), &identity());
         groups.children(g).is_empty();
@@ -185,7 +189,7 @@ mod tests {
     fn adding_a_child_to_a_group() {
         let mut objects: Vec<Object> = vec![Shape::sphere().into()];
         let mut groups = Groups::new();
-        let g = Group::new(&mut groups);
+        let g = groups.add_group();
         assert_eq!(g.index, 0);
         groups.add_child_to_group(0, g, &mut objects);
         assert!(!groups.children(g).is_empty());
@@ -197,7 +201,7 @@ mod tests {
     fn intersecting_a_ray_with_an_empty_group() {
         let objects: Vec<Object> = Vec::new();
         let mut groups = Groups::new();
-        let g = Group::new(&mut groups);
+        let g = groups.add_group();
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
         let is = g.local_intersect(&r, &objects, &groups);
         assert!(is.is_empty());
@@ -206,7 +210,7 @@ mod tests {
     #[test]
     fn intersecting_a_ray_with_a_nonempty_group() {
         let mut groups = Groups::new();
-        let g = Group::new(&mut groups);
+        let g = groups.add_group();
         let mut objects: Vec<Object> = Vec::new();
         objects.push(Shape::sphere().into());
         let mut s1 = Shape::sphere();
@@ -230,7 +234,7 @@ mod tests {
     #[test]
     fn intersecting_a_ray_with_a_transformed_group() {
         let mut groups = Groups::new();
-        let g = Group::new(&mut groups); // 3
+        let g = groups.add_group(); // 3
         *groups.transform_mut(g) = scaling(2., 2., 2.);
         let mut objects: Vec<Object> = Vec::new();
         let mut s = Shape::sphere();
@@ -245,7 +249,7 @@ mod tests {
     #[test]
     fn bounding_box_of_group_with_a_single_object() {
         let mut groups = Groups::new();
-        let g = Group::new(&mut groups); // 3
+        let g = groups.add_group(); // 3
         *groups.transform_mut(g) = scaling(2., 2., 2.);
         let mut objects: Vec<Object> = Vec::new();
         objects.push(Shape::sphere().into());
@@ -258,7 +262,7 @@ mod tests {
     #[test]
     fn bounding_box_of_group_with_two_objects() {
         let mut groups = Groups::new();
-        let g = Group::new(&mut groups); // 3
+        let g = groups.add_group(); // 3
         *groups.transform_mut(g) = scaling(2., 2., 2.);
         let mut objects: Vec<Object> = Vec::new();
         objects.push(Shape::sphere().into());

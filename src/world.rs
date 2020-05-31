@@ -30,13 +30,13 @@ impl World {
     }
 
     pub fn add_group(&mut self) -> (Group, usize) {
-        let group = Group::new(&mut self.groups);
+        let group = self.groups.add_group();
         let i = self.add_object(group);
         (group, i)
     }
 
     pub fn add_subgroup(&mut self, g: Group) -> (Group, usize) {
-        let sub_group = Group::new(&mut self.groups);
+        let sub_group = self.groups.add_group();
         let i = self.add_object_to_group(sub_group, g);
         (sub_group, i)
     }
