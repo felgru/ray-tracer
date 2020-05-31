@@ -84,7 +84,8 @@ impl World {
 
     fn intersect(&self, ray: &Ray) -> Intersections {
         let mut intersections = Intersections::new();
-        for (i, obj) in self.objects.iter().enumerate() {
+        for i in self.scene.iter().copied() {
+            let obj = self.get_object(i);
             let is = obj.intersect(ray, i, &self.objects, &self.groups);
             intersections.add_intersections_from(is);
         }
@@ -942,5 +943,22 @@ mod tests {
                             &world.groups);
         assert_relative_eq!(p, Vector::new(0.2857, 0.4286, -0.8571),
                             max_relative = 1e-4);
+    }
+
+    #[test]
+    fn object_gets_transformed_with_group() {
+        let mut world = World::new();
+        let (group, group_index) = world.add_group();
+        use crate::geometry::translation;
+        let transform = translation(&Vector::new(0., 2., 0.));
+        world.set_transform_of(group_index, transform);
+        use crate::shapes::Shape;
+        world.add_object_to_group(Shape::sphere(), group);
+
+        let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
+        let xs = world.intersect(&r);
+        // since the transformation of the group moved the sphere above the ray
+        // we do not get any intersections.
+        assert_eq!(xs.len(), 0);
     }
 }
