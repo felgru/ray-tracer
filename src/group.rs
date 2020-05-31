@@ -200,7 +200,7 @@ mod tests {
         let g = Group::new(&mut groups);
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
         let is = g.local_intersect(&r, &objects, &groups);
-        assert_eq!(is.len(), 0);
+        assert!(is.is_empty());
     }
 
     #[test]

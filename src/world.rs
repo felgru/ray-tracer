@@ -959,6 +959,6 @@ mod tests {
         let xs = world.intersect(&r);
         // since the transformation of the group moved the sphere above the ray
         // we do not get any intersections.
-        assert_eq!(xs.len(), 0);
+        assert!(xs.is_empty());
     }
 }

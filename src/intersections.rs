@@ -50,6 +50,10 @@ impl Intersections {
     pub fn len(&self) -> usize {
         self.intersections.len()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.intersections.is_empty()
+    }
 }
 
 impl IntoIterator for Intersections {

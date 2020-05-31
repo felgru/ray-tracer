@@ -137,7 +137,7 @@ mod tests {
         use crate::geometry::translation;
         s.set_transform(translation(&Vector::new(5., 0., 0.)));
         let xs = s.intersect(&r);
-        assert_eq!(xs.len(), 0);
+        assert!(xs.is_empty());
     }
 
     #[test]

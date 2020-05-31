@@ -62,7 +62,7 @@ mod tests {
     fn ray_missing_sphere() {
         let r = Ray::new(Point::new(0., 2., -5.), Vector::new(0., 0., 1.));
         let xs = SPHERE.local_intersect(&r);
-        assert_eq!(xs.len(), 0);
+        assert!(xs.is_empty());
     }
 
     #[test]
