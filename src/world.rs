@@ -1,15 +1,15 @@
 use crate::color::Color;
 use crate::geometry::{Point, reflect, Transform, Vector};
-use crate::group::{Group, Groups};
+use crate::group::Group;
 use crate::intersections::{Intersection, Intersections};
 use crate::light::PointLight;
 use crate::rays::Ray;
 use crate::object::Object;
+use crate::object_store::ObjectStore;
 
 pub struct World {
     scene: Vec<usize>,
-    objects: Vec<Object>,
-    groups: Groups,
+    objects: ObjectStore,
     lights: Vec<PointLight>,
 }
 
@@ -17,40 +17,30 @@ impl World {
     pub fn new() -> Self {
         World{
             scene: Vec::new(),
-            objects: Vec::new(),
-            groups: Groups::new(),
+            objects: ObjectStore::new(),
             lights: Vec::new(),
         }
     }
 
     pub fn add_object<O: Into<Object>>(&mut self, obj: O) -> usize {
-        let i = self._add_object(obj.into());
+        let i = self.objects.add_object(obj);
         self.scene.push(i);
         i
     }
 
     pub fn add_group(&mut self) -> (Group, usize) {
-        let group = self.groups.add_group();
-        let i = self.add_object(group);
+        let (group, i) = self.objects.add_group();
+        self.scene.push(i);
         (group, i)
     }
 
     pub fn add_subgroup(&mut self, g: Group) -> (Group, usize) {
-        let sub_group = self.groups.add_group();
-        let i = self.add_object_to_group(sub_group, g);
-        (sub_group, i)
+        self.objects.add_subgroup(g)
     }
 
     pub fn add_object_to_group<O: Into<Object>>(&mut self, obj: O,
                                                 group: Group) -> usize {
-        let i = self._add_object(obj.into());
-        self.groups.add_child_to_group(i, group, &mut self.objects);
-        i
-    }
-
-    fn _add_object(&mut self, obj: Object) -> usize {
-        self.objects.push(obj);
-        self.objects.len() - 1
+        self.objects.add_object_to_group(obj, group)
     }
 
     pub fn add_light(&mut self, light: PointLight) -> usize {
@@ -59,12 +49,16 @@ impl World {
     }
 
     pub fn get_object(&self, i: usize) -> &Object {
-        &self.objects[i]
+        self.objects.get_object(i)
+    }
+
+    #[cfg(test)]
+    fn get_object_mut(&mut self, i: usize) -> &mut Object {
+        self.objects.get_object_mut(i)
     }
 
     pub fn get_group(&self, i: usize) -> Group {
-        assert!(i < self.groups.len());
-        Group::with_index(i)
+        self.objects.get_group(i)
     }
 
     pub fn get_light(&self, i: usize) -> &PointLight {
@@ -86,7 +80,7 @@ impl World {
         let mut intersections = Intersections::new();
         for i in self.scene.iter().copied() {
             let obj = self.get_object(i);
-            let is = obj.intersect(ray, i, &self.objects, &self.groups);
+            let is = obj.intersect(ray, i, &self.objects);
             intersections.add_intersections_from(is);
         }
         intersections
@@ -107,7 +101,7 @@ impl World {
                                           &comps.eyev,
                                           &comps.normalv,
                                           self.is_shadowed(&comps.over_point, l),
-                                          &self.groups);
+                                          self.objects.groups());
         let surface = self.lights.iter().map(lighting).sum::<Color>();
 
         let reflected = self.reflected_color(comps, remaining);
@@ -179,7 +173,7 @@ impl World {
     }
 
     pub fn set_transform_of(&mut self, i: usize, t: Transform) {
-        self.objects[i].set_transform(t, &mut self.groups);
+        self.objects.set_transform_of_object(i, t);
     }
 }
 
@@ -203,7 +197,7 @@ impl<'a> PreparedComputations<'a> {
         let point = ray.position(hit.t);
         let object = world.get_object(hit.object_index);
         let eyev = -ray.direction;
-        let mut normalv = object.normal_at(&point, &world.groups);
+        let mut normalv = object.normal_at(&point, world.objects.groups());
         let inside;
         if normalv.dot(&eyev) < 0. {
             inside = true;
@@ -354,8 +348,8 @@ mod tests {
 
         let w = default_world();
         assert_eq!(w.lights[0].intensity, intensity);
-        assert_eq!(w.objects[0].get_material().pattern, Pattern::uniform(c));
-        assert_eq!(w.objects[1].get_transform(&Groups::new()), &t);
+        assert_eq!(w.get_object(0).get_material().pattern, Pattern::uniform(c));
+        assert_eq!(w.get_object(1).get_transform(w.objects.groups()), &t);
     }
 
     #[test]
@@ -475,7 +469,7 @@ mod tests {
     }
 
     fn set_ambient_of_object(w: &mut World, i: usize, ambient: f64) {
-        let obj = &mut w.objects[i];
+        let obj = w.get_object_mut(i);
         let mut m = obj.get_material().clone();
         m.shader.ambient = ambient;
         obj.set_material(m);
@@ -728,7 +722,7 @@ mod tests {
     #[test]
     fn refracted_color_at_maximal_recursion_depth() {
         let mut w = default_world();
-        let s = &mut w.objects[0];
+        let s = w.get_object_mut(0);
         let mut m = s.get_material().clone();
         m.shader.transparency = 1.;
         m.shader.refractive_index = 1.5;
@@ -744,7 +738,7 @@ mod tests {
     #[test]
     fn refracted_color_under_total_internal_reflection() {
         let mut w = default_world();
-        let s = &mut w.objects[0];
+        let s = w.get_object_mut(0);
         let mut m = s.get_material().clone();
         m.shader.transparency = 1.;
         m.shader.refractive_index = 1.5;
@@ -762,12 +756,12 @@ mod tests {
     #[test]
     fn refracted_color_with_a_refracted_ray() {
         let mut w = default_world();
-        let a = &mut w.objects[0];
+        let a = w.get_object_mut(0);
         let mut m = a.get_material().clone();
         m.shader.ambient = 1.;
         m.pattern = Pattern::test();
         a.set_material(m);
-        let b = &mut w.objects[1];
+        let b = w.get_object_mut(1);
         let mut m = b.get_material().clone();
         m.shader.transparency = 1.;
         m.shader.refractive_index = 1.5;
@@ -891,8 +885,8 @@ mod tests {
         let si = world.add_object_to_group(s, g2);
         let s = world.get_object(si);
         assert_eq!(s.parent(), Some(g2));
-        assert_eq!(g2.parent(&world.groups), Some(g1));
-        assert_eq!(g1.parent(&world.groups), None);
+        assert_eq!(g2.parent(world.objects.groups()), Some(g1));
+        assert_eq!(g1.parent(world.objects.groups()), None);
     }
 
     #[test]
@@ -906,7 +900,7 @@ mod tests {
         s.set_transform(translation(&Vector::new(5., 0., 0.)));
         let si = world.add_object_to_group(s, g2);
         let s = world.get_object(si);
-        let p = s.world_to_object(&Point::new(-2., 0., -10.), &world.groups);
+        let p = s.world_to_object(&Point::new(-2., 0., -10.), world.objects.groups());
         assert_relative_eq!(p, Point::new(0., 0., -1.));
     }
 
@@ -922,7 +916,7 @@ mod tests {
         let si = world.add_object_to_group(s, g2);
         let s = world.get_object(si);
         let x = f64::sqrt(3.) / 3.;
-        let p = s.normal_to_world(&Vector::new(x, x, x), &world.groups);
+        let p = s.normal_to_world(&Vector::new(x, x, x), world.objects.groups());
         assert_relative_eq!(p, Vector::new(0.2857, 0.4286, -0.8571),
                             max_relative = 1e-4);
     }
@@ -940,7 +934,7 @@ mod tests {
         let s = world.get_object(si);
         let sqrt3 = f64::sqrt(3.);
         let p = s.normal_at(&Point::new(sqrt3, 2./3.*sqrt3, -5. - sqrt3/3.),
-                            &world.groups);
+                            world.objects.groups());
         assert_relative_eq!(p, Vector::new(0.2857, 0.4286, -0.8571),
                             max_relative = 1e-4);
     }

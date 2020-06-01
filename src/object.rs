@@ -4,6 +4,7 @@ use crate::group::{Group, Groups};
 use crate::intersections::Intersections;
 use crate::light::PointLight;
 use crate::material::Material;
+use crate::object_store::ObjectStore;
 use crate::rays::Ray;
 use crate::shapes::bounds::Bounds;
 use crate::shapes::Shape;
@@ -44,7 +45,7 @@ impl Object {
     }
 
     pub fn intersect(&self, ray: &Ray, obj_id: usize,
-                     objects: &[Object], groups: &Groups) -> Intersections {
+                     objects: &ObjectStore) -> Intersections {
         use ObjectData::*;
         match &self.object {
             Shape(shp) => {
@@ -52,7 +53,7 @@ impl Object {
                 intersections.add_intersections(obj_id, shp.intersect(ray));
                 intersections
             }
-            Group(grp) => grp.intersect(ray, objects, groups),
+            Group(grp) => grp.intersect(ray, objects),
         }
     }
 

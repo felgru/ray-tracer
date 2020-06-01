@@ -14,6 +14,7 @@ pub mod intersections;
 pub mod light;
 pub mod material;
 pub mod object;
+pub mod object_store;
 pub mod patterns;
 pub mod rays;
 pub mod shapes;
