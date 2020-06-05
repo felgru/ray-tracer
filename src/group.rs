@@ -5,7 +5,7 @@ use crate::rays::Ray;
 use crate::shapes::bounds::Bounds;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub struct Group {
+pub struct GroupIndex {
     pub index: usize,
 }
 
@@ -31,11 +31,16 @@ impl Groups {
         self.children.is_empty()
     }
 
-    pub fn add_group(&mut self) -> Group {
-        Group::new(self)
+    pub fn add_group(&mut self) -> GroupIndex {
+        let nan = std::f64::NAN;
+        self.children.push(Vec::new());
+        self.bounds.push(Bounds::new(Point::new(nan, nan, nan),
+                                     Point::new(nan, nan, nan)));
+        let index = self.bounds.len() - 1;
+        GroupIndex::new(index)
     }
 
-    pub fn add_child_to_group(&mut self, obj: ObjectIndex, group: Group,
+    pub fn add_child_to_group(&mut self, obj: ObjectIndex, group: GroupIndex,
                               objects: &ObjectStore) {
         self.children_mut(group).push(obj);
         let child_transform = objects.get_transform_of_object(obj);
@@ -46,37 +51,26 @@ impl Groups {
         // TODO: merge the updated bounds into the parents bounds
     }
 
-    pub fn children(&self, group: Group) -> &Vec<ObjectIndex> {
+    pub fn children(&self, group: GroupIndex) -> &Vec<ObjectIndex> {
         &self.children[group.index]
     }
 
-    pub fn children_mut(&mut self, group: Group) -> &mut Vec<ObjectIndex> {
+    pub fn children_mut(&mut self, group: GroupIndex) -> &mut Vec<ObjectIndex> {
         &mut self.children[group.index]
     }
 
-    pub fn local_bounds_of(&self, group: Group) -> &Bounds {
+    pub fn local_bounds_of(&self, group: GroupIndex) -> &Bounds {
         &self.bounds[group.index]
     }
 
-    pub fn bounds_mut(&mut self, group: Group) -> &mut Bounds {
+    pub fn bounds_mut(&mut self, group: GroupIndex) -> &mut Bounds {
         &mut self.bounds[group.index]
     }
 }
 
-impl Group {
-    fn new(groups: &mut Groups) -> Self {
-        let nan = std::f64::NAN;
-        groups.children.push(Vec::new());
-        groups.bounds.push(Bounds::new(Point::new(nan, nan, nan),
-                                       Point::new(nan, nan, nan)));
-        let index = groups.bounds.len() - 1;
-        Group {
-            index,
-        }
-    }
-
-    pub fn with_index(i: usize) -> Self {
-        Group {index: i}
+impl GroupIndex {
+    pub fn new(index: usize) -> Self {
+        GroupIndex{index}
     }
 
     pub fn local_intersect(&self, ray: &Ray, objects: &ObjectStore)

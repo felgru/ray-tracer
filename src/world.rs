@@ -1,6 +1,6 @@
 use crate::color::Color;
 use crate::geometry::{Point, reflect, Transform, Vector};
-use crate::group::Group;
+use crate::group::GroupIndex;
 use crate::intersections::{Intersection, Intersections};
 use crate::light::PointLight;
 use crate::rays::Ray;
@@ -29,18 +29,19 @@ impl World {
         i
     }
 
-    pub fn add_group(&mut self, transform: Transform) -> Group {
+    pub fn add_group(&mut self, transform: Transform) -> GroupIndex {
         let group = self.objects.add_group(transform);
         self.scene.push(ObjectIndex::Group(group));
         group
     }
 
-    pub fn add_subgroup(&mut self, transform: Transform, g: Group) -> Group {
+    pub fn add_subgroup(&mut self, transform: Transform, g: GroupIndex)
+                                                        -> GroupIndex {
         self.objects.add_subgroup(transform, g)
     }
 
     pub fn add_shape_to_group(&mut self, shape: Shape, transform: Transform,
-                              group: Group) -> ShapeIndex {
+                              group: GroupIndex) -> ShapeIndex {
         self.objects.add_shape_to_group(shape, transform, group)
     }
 

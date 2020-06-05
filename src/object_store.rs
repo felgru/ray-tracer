@@ -1,6 +1,6 @@
 use crate::color::Color;
 use crate::geometry::{Point, Transform, Vector};
-use crate::group::{Group, Groups};
+use crate::group::{GroupIndex, Groups};
 use crate::intersections::Intersections;
 use crate::light::PointLight;
 use crate::material::Material;
@@ -10,13 +10,13 @@ use crate::shapes::{Shape, ShapeIndex};
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum ObjectIndex {
-    Group(Group),
+    Group(GroupIndex),
     Shape(ShapeIndex),
 }
 
 impl ObjectIndex {
     pub fn new_group(index: usize) -> ObjectIndex {
-        ObjectIndex::Group(Group::with_index(index))
+        ObjectIndex::Group(GroupIndex::new(index))
     }
 
     pub fn new_shape(index: usize) -> ObjectIndex {
@@ -30,20 +30,20 @@ impl From<ShapeIndex> for ObjectIndex {
     }
 }
 
-impl From<Group> for ObjectIndex {
-    fn from(g: Group) -> Self {
+impl From<GroupIndex> for ObjectIndex {
+    fn from(g: GroupIndex) -> Self {
         ObjectIndex::Group(g)
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Parent {
-    Group(Group),
+    Group(GroupIndex),
     None,
 }
 
-impl From<Group> for Parent {
-    fn from(g: Group) -> Self {
+impl From<GroupIndex> for Parent {
+    fn from(g: GroupIndex) -> Self {
         Parent::Group(g)
     }
 }
@@ -168,14 +168,14 @@ impl ObjectStore {
         ShapeIndex::new(self.shapes.len() - 1)
     }
 
-    pub fn add_group(&mut self, transform: Transform) -> Group {
+    pub fn add_group(&mut self, transform: Transform) -> GroupIndex {
         self.parents.add_group_parent();
         self.transforms.add_group_transform(transform);
         self.groups.add_group()
     }
 
-    pub fn add_subgroup(&mut self, transform: Transform, group: Group)
-                                                                -> Group {
+    pub fn add_subgroup(&mut self, transform: Transform, group: GroupIndex)
+                                                                -> GroupIndex {
         let sub_group = self.add_group(transform);
         let i = ObjectIndex::Group(sub_group);
         self.add_child_to_group(i, group);
@@ -184,7 +184,7 @@ impl ObjectStore {
     }
 
     pub fn add_shape_to_group(&mut self, shape: Shape, transform: Transform,
-                              group: Group) -> ShapeIndex {
+                              group: GroupIndex) -> ShapeIndex {
         let i = self.add_shape(shape, transform);
         let obj = ObjectIndex::Shape(i);
         self.add_child_to_group(obj, group);
@@ -192,7 +192,7 @@ impl ObjectStore {
         i
     }
 
-    fn add_child_to_group(&mut self, obj: ObjectIndex, group: Group) {
+    fn add_child_to_group(&mut self, obj: ObjectIndex, group: GroupIndex) {
         self.groups.children_mut(group).push(obj);
         let child_transform = self.get_transform_of_object(obj);
         let child_bounds = Bounds::from_points(
@@ -218,7 +218,7 @@ impl ObjectStore {
         }
     }
 
-    pub fn get_bounds_of_group(&self, group: Group) -> &Bounds {
+    pub fn get_bounds_of_group(&self, group: GroupIndex) -> &Bounds {
         self.groups.local_bounds_of(group)
     }
 
@@ -226,7 +226,7 @@ impl ObjectStore {
         self.parents.parent_of(obj.into())
     }
 
-    pub fn children_of_group(&self, group: Group) -> &[ObjectIndex] {
+    pub fn children_of_group(&self, group: GroupIndex) -> &[ObjectIndex] {
         &self.groups.children(group)
     }
 

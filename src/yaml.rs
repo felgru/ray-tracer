@@ -6,7 +6,7 @@ use crate::camera::Camera;
 use crate::color::Color;
 use crate::geometry::{identity, Point, rotation_x, rotation_y, rotation_z, scaling, Transform,
                       translation, Vector, view_transform};
-use crate::group::Group;
+use crate::group::GroupIndex;
 use crate::light::PointLight;
 use crate::material::Material;
 use crate::patterns::Pattern;
@@ -95,7 +95,7 @@ fn load_light(entry: &Yaml) -> PointLight {
 }
 
 fn load_sphere(entry: &Yaml, materials: &MaterialStore, groups: &GroupStore)
-                                    -> (Shape, Transform, Option<Group>) {
+                                    -> (Shape, Transform, Option<GroupIndex>) {
     let mut sphere = Shape::sphere();
     let (transform, group) = load_shape_properties(&mut sphere, entry,
                                                    materials, groups);
@@ -103,7 +103,7 @@ fn load_sphere(entry: &Yaml, materials: &MaterialStore, groups: &GroupStore)
 }
 
 fn load_plane(entry: &Yaml, materials: &MaterialStore, groups: &GroupStore)
-                                    -> (Shape, Transform, Option<Group>) {
+                                    -> (Shape, Transform, Option<GroupIndex>) {
     let mut plane = Shape::plane();
     let (transform, group) = load_shape_properties(&mut plane, entry,
                                                    materials, groups);
@@ -111,7 +111,7 @@ fn load_plane(entry: &Yaml, materials: &MaterialStore, groups: &GroupStore)
 }
 
 fn load_cube(entry: &Yaml, materials: &MaterialStore, groups: &GroupStore)
-                                    -> (Shape, Transform, Option<Group>) {
+                                    -> (Shape, Transform, Option<GroupIndex>) {
     let mut cube = Shape::cube();
     let (transform, group) = load_shape_properties(&mut cube, entry,
                                                    materials, groups);
@@ -120,7 +120,8 @@ fn load_cube(entry: &Yaml, materials: &MaterialStore, groups: &GroupStore)
 
 fn load_shape_properties(shape: &mut Shape, entry: &Yaml,
                          materials: &MaterialStore,
-                         groups: &GroupStore) -> (Transform, Option<Group>) {
+                         groups: &GroupStore)
+                                    -> (Transform, Option<GroupIndex>) {
     let mut group = None;
     let mut transform = identity();
     for (key, entry) in entry.as_hash().unwrap().iter() {
@@ -213,7 +214,7 @@ fn parse_transform(entry: &Yaml) -> Transform {
 }
 
 struct GroupStore {
-    groups: HashMap<String, Group>,
+    groups: HashMap<String, GroupIndex>,
 }
 
 impl GroupStore {
@@ -221,14 +222,14 @@ impl GroupStore {
         GroupStore{ groups: HashMap::new() }
     }
 
-    fn add(&mut self, name: &str, group: Group) {
+    fn add(&mut self, name: &str, group: GroupIndex) {
         self.groups.insert(name.to_string(), group);
     }
 
     fn parse(&mut self, entry: &Yaml, world: &mut World) {
         let entry = entry.as_hash().unwrap();
         let mut name: Option<&str> = None;
-        let mut parent: Option<Group> = None;
+        let mut parent: Option<GroupIndex> = None;
         let mut transform: Option<Transform> = None;
         for (key, entry) in entry.iter() {
             match key.as_str().unwrap() {
@@ -273,9 +274,9 @@ impl GroupStore {
 }
 
 impl Index<&str> for GroupStore {
-    type Output = Group;
+    type Output = GroupIndex;
 
-    fn index(&self, idx: &str) -> &Group {
+    fn index(&self, idx: &str) -> &GroupIndex {
         &self.groups[idx]
     }
 }
