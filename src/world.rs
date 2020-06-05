@@ -4,11 +4,11 @@ use crate::group::Group;
 use crate::intersections::{Intersection, Intersections};
 use crate::light::PointLight;
 use crate::rays::Ray;
-use crate::object::Object;
-use crate::object_store::ObjectStore;
+use crate::object_store::{ObjectIndex, ObjectStore};
+use crate::shapes::{Shape, ShapeIndex};
 
 pub struct World {
-    scene: Vec<usize>,
+    scene: Vec<ObjectIndex>,
     objects: ObjectStore,
     lights: Vec<PointLight>,
 }
@@ -22,43 +22,31 @@ impl World {
         }
     }
 
-    pub fn add_object<O: Into<Object>>(&mut self, obj: O) -> usize {
-        let i = self.objects.add_object(obj);
-        self.scene.push(i);
+    pub fn add_shape(&mut self, shape: Shape, transform: Transform)
+                                                    -> ShapeIndex {
+        let i = self.objects.add_shape(shape, transform);
+        self.scene.push(ObjectIndex::Shape(i));
         i
     }
 
-    pub fn add_group(&mut self) -> (Group, usize) {
-        let (group, i) = self.objects.add_group();
-        self.scene.push(i);
-        (group, i)
+    pub fn add_group(&mut self, transform: Transform) -> Group {
+        let group = self.objects.add_group(transform);
+        self.scene.push(ObjectIndex::Group(group));
+        group
     }
 
-    pub fn add_subgroup(&mut self, g: Group) -> (Group, usize) {
-        self.objects.add_subgroup(g)
+    pub fn add_subgroup(&mut self, transform: Transform, g: Group) -> Group {
+        self.objects.add_subgroup(transform, g)
     }
 
-    pub fn add_object_to_group<O: Into<Object>>(&mut self, obj: O,
-                                                group: Group) -> usize {
-        self.objects.add_object_to_group(obj, group)
+    pub fn add_shape_to_group(&mut self, shape: Shape, transform: Transform,
+                              group: Group) -> ShapeIndex {
+        self.objects.add_shape_to_group(shape, transform, group)
     }
 
     pub fn add_light(&mut self, light: PointLight) -> usize {
         self.lights.push(light);
         self.lights.len() - 1
-    }
-
-    pub fn get_object(&self, i: usize) -> &Object {
-        self.objects.get_object(i)
-    }
-
-    #[cfg(test)]
-    fn get_object_mut(&mut self, i: usize) -> &mut Object {
-        self.objects.get_object_mut(i)
-    }
-
-    pub fn get_group(&self, i: usize) -> Group {
-        self.objects.get_group(i)
     }
 
     pub fn get_light(&self, i: usize) -> &PointLight {
@@ -79,35 +67,34 @@ impl World {
     fn intersect(&self, ray: &Ray) -> Intersections {
         let mut intersections = Intersections::new();
         for i in self.scene.iter().copied() {
-            let obj = self.get_object(i);
-            let is = obj.intersect(ray, i, &self.objects);
+            let is = self.objects.intersect(i, ray);
             intersections.add_intersections_from(is);
         }
         intersections
     }
 
-    fn prepare_computations<'a, 'b>(&'a self, hit: &'b Intersection,
-                                    ray: &'b Ray,
-                                    intersections: &'b Intersections)
-                                                -> PreparedComputations<'a> {
+    fn prepare_computations(&self, hit: &Intersection,
+                            ray: &Ray,
+                            intersections: &Intersections)
+                                        -> PreparedComputations {
         PreparedComputations::new(self, hit, ray, intersections)
     }
 
     fn shade_hit(&self, comps: &PreparedComputations,
                  remaining: usize) -> Color {
-        let lighting = |l| comps.object
-                                .lighting(l,
-                                          &comps.point,
-                                          &comps.eyev,
-                                          &comps.normalv,
-                                          self.is_shadowed(&comps.over_point, l),
-                                          self.objects.groups());
+        let lighting = |l| self.objects
+                               .lighting(comps.shape_index,
+                                         l,
+                                         &comps.point,
+                                         &comps.eyev,
+                                         &comps.normalv,
+                                         self.is_shadowed(&comps.over_point, l));
         let surface = self.lights.iter().map(lighting).sum::<Color>();
 
         let reflected = self.reflected_color(comps, remaining);
         let refracted = self.refracted_color(comps, remaining);
 
-        let shader = comps.object.get_material().shader;
+        let shader = self.objects.get_material_of(comps.shape_index).shader;
         if shader.reflective > 0. && shader.transparency > 0. {
             let reflectance = schlick(&comps);
             surface + reflected * reflectance
@@ -119,7 +106,8 @@ impl World {
 
     fn reflected_color(&self, comps: &PreparedComputations,
                        remaining: usize) -> Color {
-        let reflectivity = comps.object.get_material().shader.reflective;
+        let reflectivity = self.objects.get_material_of(comps.shape_index)
+                                       .shader.reflective;
         if remaining == 0 || reflectivity == 0. {
             return Color::black();
         }
@@ -133,7 +121,8 @@ impl World {
     fn refracted_color(&self, comps: &PreparedComputations,
                        remaining: usize) -> Color {
         if remaining == 0
-           || comps.object.get_material().shader.transparency == 0. {
+           || self.objects.get_material_of(comps.shape_index)
+                          .shader.transparency == 0. {
             return Color::black();
         }
 
@@ -155,7 +144,8 @@ impl World {
         let refract_ray = Ray::new(comps.under_point, direction);
 
         self.color_at(&refract_ray, remaining - 1)
-            * comps.object.get_material().shader.transparency
+            * self.objects.get_material_of(comps.shape_index).shader
+                                                             .transparency
     }
 
     fn is_shadowed(&self, point: &Point, light: &PointLight) -> bool {
@@ -172,14 +162,14 @@ impl World {
         }
     }
 
-    pub fn set_transform_of(&mut self, i: usize, t: Transform) {
+    pub fn set_transform_of(&mut self, i: ObjectIndex, t: Transform) {
         self.objects.set_transform_of_object(i, t);
     }
 }
 
-struct PreparedComputations<'a> {
+struct PreparedComputations {
     pub t: f64,
-    pub object: &'a Object,
+    pub shape_index: ShapeIndex,
     pub point: Point,
     pub over_point: Point,
     pub under_point: Point,
@@ -191,13 +181,13 @@ struct PreparedComputations<'a> {
     pub inside: bool,
 }
 
-impl<'a> PreparedComputations<'a> {
-    pub fn new<'b>(world: &'a World, hit: &'b Intersection, ray: &'b Ray,
-                   intersections: &'b Intersections) -> Self {
+impl PreparedComputations {
+    pub fn new(world: &World, hit: &Intersection, ray: &Ray,
+               intersections: &Intersections) -> Self {
         let point = ray.position(hit.t);
-        let object = world.get_object(hit.object_index);
+        let shape_index = hit.shape_index;
         let eyev = -ray.direction;
-        let mut normalv = object.normal_at(&point, world.objects.groups());
+        let mut normalv = world.objects.normal_at(shape_index, &point);
         let inside;
         if normalv.dot(&eyev) < 0. {
             inside = true;
@@ -212,7 +202,7 @@ impl<'a> PreparedComputations<'a> {
                                                        intersections);
         PreparedComputations{
             t: hit.t,
-            object,
+            shape_index,
             point,
             over_point,
             under_point,
@@ -227,10 +217,10 @@ impl<'a> PreparedComputations<'a> {
 
     fn get_refractive_indices_at(world: &World, hit: &Intersection,
                                  xs: &Intersections) -> (f64, f64) {
-        let mut visited_objects = Vec::<usize>::new();
+        let mut visited_objects = Vec::<ShapeIndex>::new();
 
         for i in xs.iter().take_while(|&i| i != hit) {
-            let idx = i.object_index;
+            let idx = i.shape_index;
             if let Some(pos) = visited_objects.iter().position(|p| *p == idx) {
                 visited_objects.remove(pos);
             } else {
@@ -239,13 +229,12 @@ impl<'a> PreparedComputations<'a> {
         }
 
         let refractive_index_of = |i| {
-            world.get_object(i).get_material()
-                               .shader.refractive_index
+            world.objects.get_material_of(i).shader.refractive_index
         };
 
         let (n1, n2);
 
-        let hit_idx = hit.object_index;
+        let hit_idx = hit.shape_index;
         if let Some(&idx) = visited_objects.last() {
             n1 = refractive_index_of(idx);
             if let Some(pos) = visited_objects.iter()
@@ -298,7 +287,6 @@ pub fn default_world() -> World {
     let intensity = Color::white();
     let light = PointLight::new(Point::new(-10., 10., -10.),
                                 intensity);
-    use crate::shapes::Shape;
     let mut s1 = Shape::sphere();
     let m = {
         let c = Color::new(0.8, 1., 0.6);
@@ -312,14 +300,14 @@ pub fn default_world() -> World {
     };
     s1.set_material(m);
 
-    let mut s2 = Shape::sphere();
-    use crate::geometry::scaling;
-    s2.set_transform(scaling(0.5, 0.5, 0.5));
+    let s2 = Shape::sphere();
 
     let mut w = World::new();
     w.add_light(light);
-    w.add_object(s1);
-    w.add_object(s2);
+    use crate::geometry::identity;
+    w.add_shape(s1, identity());
+    use crate::geometry::scaling;
+    w.add_shape(s2, scaling(0.5, 0.5, 0.5));
     w
 }
 
@@ -329,8 +317,8 @@ mod tests {
 
     use crate::geometry::*;
     use crate::material::Material;
+    use crate::object_store::Parent;
     use crate::patterns::Pattern;
-    use crate::shapes::Shape;
 
     #[test]
     fn create_a_world() {
@@ -348,8 +336,10 @@ mod tests {
 
         let w = default_world();
         assert_eq!(w.lights[0].intensity, intensity);
-        assert_eq!(w.get_object(0).get_material().pattern, Pattern::uniform(c));
-        assert_eq!(w.get_object(1).get_transform(w.objects.groups()), &t);
+        assert_eq!(w.objects.get_material_of(ShapeIndex::new(0)).pattern,
+                   Pattern::uniform(c));
+        let s1_idx = ObjectIndex::Shape(ShapeIndex::new(1));
+        assert_eq!(w.objects.get_transform_of_object(s1_idx), &t);
     }
 
     #[test]
@@ -373,12 +363,13 @@ mod tests {
         let mut m = Material::new();
         m.pattern = Pattern::uniform(red);
         shape.set_material(m);
-        let indx = w.add_object(shape);
+        let indx = w.add_shape(shape, identity());
         let i = Intersection::new(4., indx);
         let is = Intersections::from_vec(vec![i]);
         let comps = w.prepare_computations(&i, &r, &is);
         assert_relative_eq!(comps.t, i.t);
-        assert_eq!(comps.object.get_material().pattern, Pattern::uniform(red));
+        assert_eq!(w.objects.get_material_of(comps.shape_index).pattern,
+                   Pattern::uniform(red));
         assert_relative_eq!(comps.point, Point::new(0., 0., -1.));
         assert_relative_eq!(comps.eyev, Vector::new(0., 0., -1.));
         assert_relative_eq!(comps.normalv, Vector::new(0., 0., -1.));
@@ -394,12 +385,13 @@ mod tests {
         let mut m = shape.get_material().clone();
         m.pattern = Pattern::uniform(red);
         shape.set_material(m);
-        let indx = w.add_object(shape);
+        let indx = w.add_shape(shape, identity());
         let i = Intersection::new(1., indx);
         let is = Intersections::from_vec(vec![i]);
         let comps = w.prepare_computations(&i, &r, &is);
         assert_relative_eq!(comps.t, i.t);
-        assert_eq!(comps.object.get_material().pattern, Pattern::uniform(red));
+        assert_eq!(w.objects.get_material_of(comps.shape_index).pattern,
+                   Pattern::uniform(red));
         assert_relative_eq!(comps.point, Point::new(0., 0., 1.));
         assert_relative_eq!(comps.eyev, Vector::new(0., 0., -1.));
         // Normal has been inverted.
@@ -411,7 +403,7 @@ mod tests {
     fn shading_an_intersection() {
         let w = default_world();
         let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
-        let i = Intersection::new(4., 0);
+        let i = Intersection::new(4., ShapeIndex::new(0));
         let is = Intersections::from_vec(vec![i]);
         let comps = w.prepare_computations(&i, &r, &is);
         let c = w.shade_hit(&comps, 4);
@@ -427,7 +419,7 @@ mod tests {
         w.lights[0] = PointLight::new(Point::new(0., 0.25, 0.),
                                       Color::white());
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
-        let i = Intersection::new(0.5, 1);
+        let i = Intersection::new(0.5, ShapeIndex::new(1));
         let is = Intersections::from_vec(vec![i]);
         let comps = w.prepare_computations(&i, &r, &is);
         let c = w.shade_hit(&comps, 4);
@@ -459,8 +451,8 @@ mod tests {
     fn color_whith_intersection_behind_the_ray() {
         let w = {
             let mut w = default_world();
-            set_ambient_of_object(&mut w, 0, 1.);
-            set_ambient_of_object(&mut w, 1, 1.);
+            set_ambient_of_shape(&mut w, 0, 1.);
+            set_ambient_of_shape(&mut w, 1, 1.);
             w
         };
         let r = Ray::new(Point::new(0., 0., 0.75), Vector::new(0., 0., -1.));
@@ -468,11 +460,11 @@ mod tests {
         assert_relative_eq!(c, Color::white());
     }
 
-    fn set_ambient_of_object(w: &mut World, i: usize, ambient: f64) {
-        let obj = w.get_object_mut(i);
-        let mut m = obj.get_material().clone();
+    fn set_ambient_of_shape(w: &mut World, i: usize, ambient: f64) {
+        let si = ShapeIndex::new(i);
+        let mut m = w.objects.get_material_of(si).clone();
         m.shader.ambient = ambient;
-        obj.set_material(m);
+        w.objects.set_material_of(si, m);
     }
 
     #[test]
@@ -512,13 +504,10 @@ mod tests {
         let mut w = World::new();
         w.add_light(PointLight::new(Point::new(0., 0., -10.),
                                     Color::white()));
-        let s1 = Shape::sphere();
-        w.add_object(s1);
-        let mut s2 = Shape::sphere();
-        s2.set_transform(translation(&Vector::new(0., 0., 10.)));
-        w.add_object(s2);
+        w.add_shape(Shape::sphere(), identity());
+        w.add_shape(Shape::sphere(), translation(&Vector::new(0., 0., 10.)));
         let r = Ray::new(Point::new(0., 0., 5.), Vector::new(0., 0., 1.));
-        let i = Intersection::new(4., 1);
+        let i = Intersection::new(4., ShapeIndex::new(1));
         let is = Intersections::from_vec(vec![i]);
         let comps = w.prepare_computations(&i, &r, &is);
         let c = w.shade_hit(&comps, 4);
@@ -545,15 +534,13 @@ mod tests {
 
     fn offset_test_world() -> World {
         let mut w = World::new();
-        let mut shape = Shape::sphere();
-        shape.set_transform(translation(&Vector::new(0., 0., 1.)));
-        w.add_object(shape);
+        w.add_shape(Shape::sphere(), translation(&Vector::new(0., 0., 1.)));
         w
     }
 
-    fn offset_test_computations<'a>(w: &World) -> PreparedComputations {
+    fn offset_test_computations(w: &World) -> PreparedComputations {
         let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
-        let i = Intersection::new(5., 0);
+        let i = Intersection::new(5., ShapeIndex::new(0));
         let is = Intersections::from_vec(vec![i]);
         w.prepare_computations(&i, &r, &is)
     }
@@ -561,11 +548,11 @@ mod tests {
     #[test]
     fn precomputing_the_reflection_vector() {
         let mut w = World::new();
-        w.add_object(Shape::plane());
+        let s = w.add_shape(Shape::plane(), identity());
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 1., -1.),
                          Vector::new(0., -1./sqrt2, 1./sqrt2));
-        let i = Intersection::new(sqrt2, 0);
+        let i = Intersection::new(sqrt2, s);
         let is = Intersections::from_vec(vec![i]);
         let comps = w.prepare_computations(&i, &r, &is);
         assert_relative_eq!(comps.reflectv,
@@ -575,9 +562,9 @@ mod tests {
     #[test]
     fn reflected_color_of_a_nonreflective_material() {
         let mut w = default_world();
-        set_ambient_of_object(&mut w, 1, 1.);
+        set_ambient_of_shape(&mut w, 1, 1.);
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
-        let i = Intersection::new(1., 1);
+        let i = Intersection::new(1., ShapeIndex::new(1));
         let is = Intersections::from_vec(vec![i]);
         let comps = w.prepare_computations(&i, &r, &is);
         let color = w.reflected_color(&comps, 4);
@@ -591,12 +578,11 @@ mod tests {
         let mut m = Material::new();
         m.shader.reflective = 0.5;
         shape.set_material(m);
-        shape.set_transform(translation(&Vector::new(0., -1., 0.)));
-        w.add_object(shape);
+        w.add_shape(shape, translation(&Vector::new(0., -1., 0.)));
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., -3.),
                          Vector::new(0., -1./sqrt2, 1./sqrt2));
-        let i = Intersection::new(sqrt2, 2);
+        let i = Intersection::new(sqrt2, ShapeIndex::new(2));
         let is = Intersections::from_vec(vec![i]);
         let comps = w.prepare_computations(&i, &r, &is);
         let color = w.reflected_color(&comps, 4);
@@ -611,12 +597,11 @@ mod tests {
         let mut m = Material::new();
         m.shader.reflective = 0.5;
         shape.set_material(m);
-        shape.set_transform(translation(&Vector::new(0., -1., 0.)));
-        w.add_object(shape);
+        w.add_shape(shape, translation(&Vector::new(0., -1., 0.)));
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., -3.),
                          Vector::new(0., -1./sqrt2, 1./sqrt2));
-        let i = Intersection::new(sqrt2, 2);
+        let i = Intersection::new(sqrt2, ShapeIndex::new(2));
         let is = Intersections::from_vec(vec![i]);
         let comps = w.prepare_computations(&i, &r, &is);
         let color = w.reflected_color(&comps, 0);
@@ -630,12 +615,11 @@ mod tests {
         let mut m = Material::new();
         m.shader.reflective = 0.5;
         shape.set_material(m);
-        shape.set_transform(translation(&Vector::new(0., -1., 0.)));
-        w.add_object(shape);
+        w.add_shape(shape, translation(&Vector::new(0., -1., 0.)));
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., -3.),
                          Vector::new(0., -1./sqrt2, 1./sqrt2));
-        let i = Intersection::new(sqrt2, 2);
+        let i = Intersection::new(sqrt2, ShapeIndex::new(2));
         let is = Intersections::from_vec(vec![i]);
         let comps = w.prepare_computations(&i, &r, &is);
         let color = w.shade_hit(&comps, 4);
@@ -652,12 +636,10 @@ mod tests {
         m.shader.reflective = 1.;
         let mut lower = Shape::plane();
         lower.set_material(m.clone());
-        lower.set_transform(translation(&Vector::new(0., -1., 0.)));
-        w.add_object(lower);
+        w.add_shape(lower, translation(&Vector::new(0., -1., 0.)));
         let mut upper = Shape::plane();
         upper.set_material(m.clone());
-        upper.set_transform(translation(&Vector::new(0., 1., 0.)));
-        w.add_object(upper);
+        w.add_shape(upper, translation(&Vector::new(0., 1., 0.)));
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 1., 0.));
         let _ = w.color_at(&r, 4); // should terminate successfully
     }
@@ -671,14 +653,13 @@ mod tests {
         s
     }
 
-    fn refraction_test_sphere(refractive_index: f64,
-                              transform: Transform) -> Shape {
+    fn add_refraction_test_sphere(w: &mut World, refractive_index: f64,
+                                  transform: Transform) -> ShapeIndex {
         let mut s = glass_sphere();
-        s.set_transform(transform);
         let mut m = *s.get_material();
         m.shader.refractive_index = refractive_index;
         s.set_material(m);
-        s
+        w.add_shape(s, transform)
     }
 
     #[test]
@@ -692,15 +673,12 @@ mod tests {
     }
 
     fn refraction_test(index: usize, n1: f64, n2: f64) {
-        let a = refraction_test_sphere(1.5, scaling(2., 2., 2.));
-        let b = refraction_test_sphere(2.0,
-                        translation(&Vector::new(0., 0., -0.25)));
-        let c = refraction_test_sphere(2.5,
-                        translation(&Vector::new(0., 0., 0.25)));
         let mut w = World::new();
-        w.add_object(a);
-        w.add_object(b);
-        w.add_object(c);
+        add_refraction_test_sphere(&mut w, 1.5, scaling(2., 2., 2.));
+        add_refraction_test_sphere(&mut w, 2.0,
+                translation(&Vector::new(0., 0., -0.25)));
+        add_refraction_test_sphere(&mut w, 2.5,
+                translation(&Vector::new(0., 0., 0.25)));
         let r = Ray::new(Point::new(0., 0., -4.), Vector::new(0., 0., 1.));
         let xs = w.intersect(&r);
         let comps = w.prepare_computations(&xs[index], &r, &xs);
@@ -712,8 +690,9 @@ mod tests {
     fn refracted_color_of_opaque_surface() {
         let w = default_world();
         let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
-        let is = Intersections::from_vec(vec![Intersection::new(4., 0),
-                                              Intersection::new(6., 0)]);
+        let s = ShapeIndex::new(0);
+        let is = Intersections::from_vec(vec![Intersection::new(4., s),
+                                              Intersection::new(6., s)]);
         let comps = w.prepare_computations(&is[0], &r, &is);
         let color = w.refracted_color(&comps, 4);
         assert_eq!(color, Color::black());
@@ -722,14 +701,15 @@ mod tests {
     #[test]
     fn refracted_color_at_maximal_recursion_depth() {
         let mut w = default_world();
-        let s = w.get_object_mut(0);
-        let mut m = s.get_material().clone();
+        let si = ShapeIndex::new(0);
+        let mut m = w.objects.get_material_of(si).clone();
         m.shader.transparency = 1.;
         m.shader.refractive_index = 1.5;
-        s.set_material(m);
+        w.objects.set_material_of(si, m);
         let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
-        let is = Intersections::from_vec(vec![Intersection::new(4., 0),
-                                              Intersection::new(6., 0)]);
+        let s = ShapeIndex::new(0);
+        let is = Intersections::from_vec(vec![Intersection::new(4., s),
+                                              Intersection::new(6., s)]);
         let comps = w.prepare_computations(&is[0], &r, &is);
         let color = w.refracted_color(&comps, 0);
         assert_eq!(color, Color::black());
@@ -738,15 +718,16 @@ mod tests {
     #[test]
     fn refracted_color_under_total_internal_reflection() {
         let mut w = default_world();
-        let s = w.get_object_mut(0);
-        let mut m = s.get_material().clone();
+        let si = ShapeIndex::new(0);
+        let mut m = w.objects.get_material_of(si).clone();
         m.shader.transparency = 1.;
         m.shader.refractive_index = 1.5;
-        s.set_material(m);
+        w.objects.set_material_of(si, m);
         let x = 1./f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., x), Vector::new(0., 1., 0.));
-        let is = Intersections::from_vec(vec![Intersection::new(-x, 0),
-                                              Intersection::new( x, 0)]);
+        let s = ShapeIndex::new(0);
+        let is = Intersections::from_vec(vec![Intersection::new(-x, s),
+                                              Intersection::new( x, s)]);
         // We're inside the sphere, so take second intersection.
         let comps = w.prepare_computations(&is[1], &r, &is);
         let color = w.refracted_color(&comps, 4);
@@ -756,21 +737,23 @@ mod tests {
     #[test]
     fn refracted_color_with_a_refracted_ray() {
         let mut w = default_world();
-        let a = w.get_object_mut(0);
-        let mut m = a.get_material().clone();
+        let ai = ShapeIndex::new(0);
+        let mut m = w.objects.get_material_of(ai).clone();
         m.shader.ambient = 1.;
         m.pattern = Pattern::test();
-        a.set_material(m);
-        let b = w.get_object_mut(1);
-        let mut m = b.get_material().clone();
+        w.objects.set_material_of(ai, m);
+        let bi = ShapeIndex::new(1);
+        let mut m = w.objects.get_material_of(bi).clone();
         m.shader.transparency = 1.;
         m.shader.refractive_index = 1.5;
-        b.set_material(m);
+        w.objects.set_material_of(bi, m);
         let r = Ray::new(Point::new(0., 0., 0.1), Vector::new(0., 1., 0.));
-        let is = Intersections::from_vec(vec![Intersection::new(-0.9899, 0),
-                                              Intersection::new(-0.4899, 1),
-                                              Intersection::new( 0.4899, 1),
-                                              Intersection::new( 0.9899, 0),
+        let s0 = ShapeIndex::new(0);
+        let s1 = ShapeIndex::new(1);
+        let is = Intersections::from_vec(vec![Intersection::new(-0.9899, s0),
+                                              Intersection::new(-0.4899, s1),
+                                              Intersection::new( 0.4899, s1),
+                                              Intersection::new( 0.9899, s0),
                                              ]);
         let comps = w.prepare_computations(&is[2], &r, &is);
         let color = w.refracted_color(&comps, 5);
@@ -786,19 +769,17 @@ mod tests {
         m.shader.transparency = 0.5;
         m.shader.refractive_index = 1.5;
         floor.set_material(m);
-        floor.set_transform(translation(&Vector::new(0., -1., 0.)));
-        w.add_object(floor);
+        let floor = w.add_shape(floor, translation(&Vector::new(0., -1., 0.)));
         let mut ball = Shape::sphere();
         let mut m = Material::new();
         m.pattern = Pattern::uniform(Color::new(1., 0., 0.));
         m.shader.ambient = 0.5;
         ball.set_material(m);
-        ball.set_transform(translation(&Vector::new(0., -3.5, -0.5)));
-        w.add_object(ball);
+        w.add_shape(ball, translation(&Vector::new(0., -3.5, -0.5)));
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., -3.),
                          Vector::new(0., -1./sqrt2, 1./sqrt2));
-        let i = Intersection::new(sqrt2, 2);
+        let i = Intersection::new(sqrt2, floor);
         let is = Intersections::from_vec(vec![i]);
         let comps = w.prepare_computations(&i, &r, &is);
         let color = w.shade_hit(&comps, 5);
@@ -809,11 +790,12 @@ mod tests {
     #[test]
     fn schlick_approximation_under_total_internal_reflection() {
         let mut w = World::new();
-        w.add_object(glass_sphere());
+        w.add_shape(glass_sphere(), identity());
         let x = 1./f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., x), Vector::new(0., 1., 0.));
-        let is = Intersections::from_vec(vec![Intersection::new(-x, 0),
-                                              Intersection::new( x, 0),
+        let s = ShapeIndex::new(0);
+        let is = Intersections::from_vec(vec![Intersection::new(-x, s),
+                                              Intersection::new( x, s),
                                              ]);
         let comps = w.prepare_computations(&is[1], &r, &is);
         let reflectance = schlick(&comps);
@@ -823,10 +805,11 @@ mod tests {
     #[test]
     fn schlick_approximation_with_perpendicular_viewing_angle() {
         let mut w = World::new();
-        w.add_object(glass_sphere());
+        w.add_shape(glass_sphere(), identity());
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 1., 0.));
-        let is = Intersections::from_vec(vec![Intersection::new(-1., 0),
-                                              Intersection::new( 1., 0),
+        let s = ShapeIndex::new(0);
+        let is = Intersections::from_vec(vec![Intersection::new(-1., s),
+                                              Intersection::new( 1., s),
                                              ]);
         let comps = w.prepare_computations(&is[1], &r, &is);
         let reflectance = schlick(&comps);
@@ -836,9 +819,10 @@ mod tests {
     #[test]
     fn schlick_approximation_with_small_angle_and_n2_larger_than_n1() {
         let mut w = World::new();
-        w.add_object(glass_sphere());
+        w.add_shape(glass_sphere(), identity());
         let r = Ray::new(Point::new(0., 0.99, -2.), Vector::new(0., 0., 1.));
-        let is = Intersections::from_vec(vec![Intersection::new(1.8589, 0)]);
+        let s = ShapeIndex::new(0);
+        let is = Intersections::from_vec(vec![Intersection::new(1.8589, s)]);
         let comps = w.prepare_computations(&is[0], &r, &is);
         let reflectance = schlick(&comps);
         assert_relative_eq!(reflectance, 0.48873, max_relative = 1e-4);
@@ -853,19 +837,17 @@ mod tests {
         m.shader.transparency = 0.5;
         m.shader.refractive_index = 1.5;
         floor.set_material(m);
-        floor.set_transform(translation(&Vector::new(0., -1., 0.)));
-        w.add_object(floor);
+        let floor = w.add_shape(floor, translation(&Vector::new(0., -1., 0.)));
         let mut ball = Shape::sphere();
         let mut m = Material::new();
         m.pattern = Pattern::uniform(Color::new(1., 0., 0.));
         m.shader.ambient = 0.5;
         ball.set_material(m);
-        ball.set_transform(translation(&Vector::new(0., -3.5, -0.5)));
-        w.add_object(ball);
+        w.add_shape(ball, translation(&Vector::new(0., -3.5, -0.5)));
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., -3.),
                          Vector::new(0., -1./sqrt2, 1./sqrt2));
-        let i = Intersection::new(sqrt2, 2);
+        let i = Intersection::new(sqrt2, floor);
         let is = Intersections::from_vec(vec![i]);
         let comps = w.prepare_computations(&i, &r, &is);
         let color = w.shade_hit(&comps, 5);
@@ -876,47 +858,36 @@ mod tests {
     #[test]
     fn parents_in_group_hierarchy() {
         let mut world = World::new();
-        let (g1, g1o) = world.add_group();
-        world.set_transform_of(g1o, rotation_y(std::f64::consts::PI/2.));
-        let (g2, g2o) = world.add_subgroup(g1);
-        world.set_transform_of(g2o, scaling(2., 2., 2.));
-        let mut s = Shape::sphere();
-        s.set_transform(translation(&Vector::new(5., 0., 0.)));
-        let si = world.add_object_to_group(s, g2);
-        let s = world.get_object(si);
-        assert_eq!(s.parent(), Some(g2));
-        assert_eq!(g2.parent(world.objects.groups()), Some(g1));
-        assert_eq!(g1.parent(world.objects.groups()), None);
+        let g1 = world.add_group(rotation_y(std::f64::consts::PI/2.));
+        let g2 = world.add_subgroup(scaling(2., 2., 2.), g1);
+        let si = world.add_shape_to_group(Shape::sphere(),
+                            translation(&Vector::new(5., 0., 0.)), g2);
+        assert_eq!(world.objects.parent_of_object(si), Parent::Group(g2));
+        assert_eq!(world.objects.parent_of_object(g2), Parent::Group(g1));
+        assert_eq!(world.objects.parent_of_object(g1), Parent::None);
     }
 
     #[test]
     fn converting_a_point_from_world_to_object_space() {
         let mut world = World::new();
-        let (g1, g1o) = world.add_group();
-        world.set_transform_of(g1o, rotation_y(std::f64::consts::PI/2.));
-        let (g2, g2o) = world.add_subgroup(g1);
-        world.set_transform_of(g2o, scaling(2., 2., 2.));
-        let mut s = Shape::sphere();
-        s.set_transform(translation(&Vector::new(5., 0., 0.)));
-        let si = world.add_object_to_group(s, g2);
-        let s = world.get_object(si);
-        let p = s.world_to_object(&Point::new(-2., 0., -10.), world.objects.groups());
+        let g1 = world.add_group(rotation_y(std::f64::consts::PI/2.));
+        let g2 = world.add_subgroup(scaling(2., 2., 2.), g1);
+        let si = world.add_shape_to_group(Shape::sphere(),
+                        translation(&Vector::new(5., 0., 0.)), g2);
+        let p = world.objects.world_to_object(si.into(),
+                                              &Point::new(-2., 0., -10.));
         assert_relative_eq!(p, Point::new(0., 0., -1.));
     }
 
     #[test]
     fn converting_a_normal_from_object_to_world_space() {
         let mut world = World::new();
-        let (g1, g1o) = world.add_group();
-        world.set_transform_of(g1o, rotation_y(std::f64::consts::PI/2.));
-        let (g2, g2o) = world.add_subgroup(g1);
-        world.set_transform_of(g2o, scaling(1., 2., 3.));
-        let mut s = Shape::sphere();
-        s.set_transform(translation(&Vector::new(5., 0., 0.)));
-        let si = world.add_object_to_group(s, g2);
-        let s = world.get_object(si);
+        let g1 = world.add_group(rotation_y(std::f64::consts::PI/2.));
+        let g2 = world.add_subgroup(scaling(1., 2., 3.), g1);
+        let si = world.add_shape_to_group(Shape::sphere(),
+                        translation(&Vector::new(5., 0., 0.)), g2);
         let x = f64::sqrt(3.) / 3.;
-        let p = s.normal_to_world(&Vector::new(x, x, x), world.objects.groups());
+        let p = world.objects.normal_to_world(si.into(), &Vector::new(x, x, x));
         assert_relative_eq!(p, Vector::new(0.2857, 0.4286, -0.8571),
                             max_relative = 1e-4);
     }
@@ -924,17 +895,13 @@ mod tests {
     #[test]
     fn finding_the_normal_on_a_child_object() {
         let mut world = World::new();
-        let (g1, g1o) = world.add_group();
-        world.set_transform_of(g1o, rotation_y(std::f64::consts::PI/2.));
-        let (g2, g2o) = world.add_subgroup(g1);
-        world.set_transform_of(g2o, scaling(1., 2., 3.));
-        let mut s = Shape::sphere();
-        s.set_transform(translation(&Vector::new(5., 0., 0.)));
-        let si = world.add_object_to_group(s, g2);
-        let s = world.get_object(si);
+        let g1 = world.add_group(rotation_y(std::f64::consts::PI/2.));
+        let g2 = world.add_subgroup(scaling(1., 2., 3.), g1);
+        let si = world.add_shape_to_group(Shape::sphere(),
+                        translation(&Vector::new(5., 0., 0.)), g2);
         let sqrt3 = f64::sqrt(3.);
-        let p = s.normal_at(&Point::new(sqrt3, 2./3.*sqrt3, -5. - sqrt3/3.),
-                            world.objects.groups());
+        let p = world.objects.normal_at(si,
+                    &Point::new(sqrt3, 2./3.*sqrt3, -5. - sqrt3/3.));
         assert_relative_eq!(p, Vector::new(0.2857, 0.4286, -0.8571),
                             max_relative = 1e-4);
     }
@@ -942,12 +909,10 @@ mod tests {
     #[test]
     fn object_gets_transformed_with_group() {
         let mut world = World::new();
-        let (group, group_index) = world.add_group();
         use crate::geometry::translation;
-        let transform = translation(&Vector::new(0., 2., 0.));
-        world.set_transform_of(group_index, transform);
+        let group = world.add_group(translation(&Vector::new(0., 2., 0.)));
         use crate::shapes::Shape;
-        world.add_object_to_group(Shape::sphere(), group);
+        world.add_shape_to_group(Shape::sphere(), identity(), group);
 
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
         let xs = world.intersect(&r);

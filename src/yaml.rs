@@ -31,27 +31,27 @@ pub fn load_world_and_cameras_from_str(s: &str)
                     world.add_light(light);
                 },
                 "plane" => {
-                    let (plane, group) = load_plane(&entry, &materials, &groups);
+                    let (plane, transform, group) = load_plane(&entry, &materials, &groups);
                     if let Some(group) = group {
-                        world.add_object_to_group(plane, group);
+                        world.add_shape_to_group(plane, transform, group);
                     } else {
-                        world.add_object(plane);
+                        world.add_shape(plane, transform);
                     }
                 },
                 "sphere" => {
-                    let (sphere, group) = load_sphere(&entry, &materials, &groups);
+                    let (sphere, transform, group) = load_sphere(&entry, &materials, &groups);
                     if let Some(group) = group {
-                        world.add_object_to_group(sphere, group);
+                        world.add_shape_to_group(sphere, transform, group);
                     } else {
-                        world.add_object(sphere);
+                        world.add_shape(sphere, transform);
                     }
                 },
                 "cube" => {
-                    let (cube, group) = load_cube(&entry, &materials, &groups);
+                    let (cube, transform, group) = load_cube(&entry, &materials, &groups);
                     if let Some(group) = group {
-                        world.add_object_to_group(cube, group);
+                        world.add_shape_to_group(cube, transform, group);
                     } else {
-                        world.add_object(cube);
+                        world.add_shape(cube, transform);
                     }
                 },
                 unknown => { // TODO: error
@@ -95,30 +95,34 @@ fn load_light(entry: &Yaml) -> PointLight {
 }
 
 fn load_sphere(entry: &Yaml, materials: &MaterialStore, groups: &GroupStore)
-                                    -> (Shape, Option<Group>) {
+                                    -> (Shape, Transform, Option<Group>) {
     let mut sphere = Shape::sphere();
-    let group = load_shape_properties(&mut sphere, entry, materials, groups);
-    (sphere, group)
+    let (transform, group) = load_shape_properties(&mut sphere, entry,
+                                                   materials, groups);
+    (sphere, transform, group)
 }
 
 fn load_plane(entry: &Yaml, materials: &MaterialStore, groups: &GroupStore)
-                                    -> (Shape, Option<Group>) {
+                                    -> (Shape, Transform, Option<Group>) {
     let mut plane = Shape::plane();
-    let group = load_shape_properties(&mut plane, entry, materials, groups);
-    (plane, group)
+    let (transform, group) = load_shape_properties(&mut plane, entry,
+                                                   materials, groups);
+    (plane, transform, group)
 }
 
 fn load_cube(entry: &Yaml, materials: &MaterialStore, groups: &GroupStore)
-                                    -> (Shape, Option<Group>) {
+                                    -> (Shape, Transform, Option<Group>) {
     let mut cube = Shape::cube();
-    let group = load_shape_properties(&mut cube, entry, materials, groups);
-    (cube, group)
+    let (transform, group) = load_shape_properties(&mut cube, entry,
+                                                   materials, groups);
+    (cube, transform, group)
 }
 
 fn load_shape_properties(shape: &mut Shape, entry: &Yaml,
                          materials: &MaterialStore,
-                         groups: &GroupStore) -> Option<Group> {
+                         groups: &GroupStore) -> (Transform, Option<Group>) {
     let mut group = None;
+    let mut transform = identity();
     for (key, entry) in entry.as_hash().unwrap().iter() {
         match key.as_str().unwrap() {
             "type" => {},
@@ -128,8 +132,7 @@ fn load_shape_properties(shape: &mut Shape, entry: &Yaml,
                 shape.set_material(material);
             },
             "transform" => {
-                let transform = parse_transform(&entry);
-                shape.set_transform(transform);
+                transform = parse_transform(&entry);
             },
             "group" => {
                 let name = entry.as_str().unwrap();
@@ -143,7 +146,7 @@ fn load_shape_properties(shape: &mut Shape, entry: &Yaml,
             }
         }
     }
-    group
+    (transform, group)
 }
 
 fn parse_point(entry: &Yaml) -> Point {
@@ -249,19 +252,22 @@ impl GroupStore {
                 }
             }
         }
-        let (group, index) =
+        let transform = if let Some(transform) = transform {
+            transform
+        } else {
+            identity()
+        };
+        let group =
             if let Some(parent) = parent {
-                world.add_subgroup(parent)
+                world.add_subgroup(transform, parent)
             } else {
-                world.add_group()
+                world.add_group(transform)
             };
-        if let Some(transform) = transform {
-            world.set_transform_of(index, transform);
-        }
         if let Some(name) = name {
             self.add(name, group);
         } else {
             // TODO: group has no name
+            panic!("Group without name.");
         }
     }
 }
