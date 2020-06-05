@@ -45,7 +45,7 @@ impl Pattern {
         self.transform = transform;
     }
 
-    fn get_pattern_data<'a>(&'a self) -> &'a dyn PatternType {
+    fn get_pattern_data(&self) -> &dyn PatternType {
         use PatternData::*;
         match &self.data {
             PlainColor(p) => p,
