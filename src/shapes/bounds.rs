@@ -16,7 +16,13 @@ impl Bounds {
         Bounds{min, max}
     }
 
-    pub fn from_points(points: &Vec<Point>) -> Self {
+    pub fn empty() -> Self {
+        let nan = std::f64::NAN;
+        Bounds::new(Point::new(nan, nan, nan),
+                    Point::new(nan, nan, nan))
+    }
+
+    pub fn from_points(points: &[Point]) -> Self {
         let mut min = points[0];
         let mut max = points[1];
 
@@ -105,5 +111,28 @@ impl RelativeEq for Bounds {
                    max_relative: Self::Epsilon) -> bool {
         Point::relative_eq(&self.min, &other.min, epsilon, max_relative) &&
         Point::relative_eq(&self.max, &other.max, epsilon, max_relative)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::geometry::*;
+
+    #[test]
+    fn empty_bounds_never_intersect() {
+        let bounds = Bounds::empty();
+        let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
+        assert!(!bounds.intersects(&r));
+    }
+
+    #[test]
+    fn adding_bounds_to_empty_bounds() {
+        let mut bounds1 = Bounds::empty();
+        let bounds2 = Bounds::new(Point::new(-1., -1., -1.),
+                                  Point::new(1., 1., 1.));
+        bounds1.merge_bounds(&bounds2);
+        assert_relative_eq!(bounds1, bounds2);
     }
 }

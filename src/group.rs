@@ -1,4 +1,3 @@
-use crate::geometry::Point;
 use crate::intersections::Intersections;
 use crate::object_store::{ObjectIndex, ObjectStore};
 use crate::rays::Ray;
@@ -32,10 +31,8 @@ impl Groups {
     }
 
     pub fn add_group(&mut self) -> GroupIndex {
-        let nan = std::f64::NAN;
         self.children.push(Vec::new());
-        self.bounds.push(Bounds::new(Point::new(nan, nan, nan),
-                                     Point::new(nan, nan, nan)));
+        self.bounds.push(Bounds::empty());
         let index = self.bounds.len() - 1;
         GroupIndex::new(index)
     }
