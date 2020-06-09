@@ -40,17 +40,6 @@ impl Groups {
         GroupIndex::new(index)
     }
 
-    pub fn add_child_to_group(&mut self, obj: ObjectIndex, group: GroupIndex,
-                              objects: &ObjectStore) {
-        self.children_mut(group).push(obj);
-        let child_transform = objects.get_transform_of_object(obj);
-        let child_bounds = Bounds::from_points(
-            &objects.local_bounds_of(obj)
-                    .global_corners(child_transform));
-        self.bounds_mut(group).merge_bounds(&child_bounds);
-        // TODO: merge the updated bounds into the parents bounds
-    }
-
     pub fn children(&self, group: GroupIndex) -> &Vec<ObjectIndex> {
         &self.children[group.index]
     }
@@ -66,24 +55,24 @@ impl Groups {
     pub fn bounds_mut(&mut self, group: GroupIndex) -> &mut Bounds {
         &mut self.bounds[group.index]
     }
+
+    pub fn local_intersect(&self, group: GroupIndex, ray: &Ray,
+                           objects: &ObjectStore) -> Intersections {
+        let mut intersections = Intersections::new();
+        if !self.local_bounds_of(group).intersects(ray) {
+            return intersections;
+        }
+        for &child in self.children(group).iter() {
+            let is = objects.intersect(child, ray);
+            intersections.add_intersections_from(is);
+        }
+        intersections
+    }
 }
 
 impl GroupIndex {
     pub fn new(index: usize) -> Self {
         GroupIndex{index}
-    }
-
-    pub fn local_intersect(&self, ray: &Ray, objects: &ObjectStore)
-                                                    -> Intersections {
-        let mut intersections = Intersections::new();
-        if !objects.get_bounds_of_group(*self).intersects(ray) {
-            return intersections;
-        }
-        for &child in objects.children_of_group(*self).iter() {
-            let is = objects.intersect(child, ray);
-            intersections.add_intersections_from(is);
-        }
-        intersections
     }
 }
 
@@ -102,7 +91,7 @@ mod tests {
         assert_eq!(g.index, 0);
         let obj = ObjectIndex::Group(g);
         assert_relative_eq!(obs.get_transform_of_object(obj), &identity());
-        obs.children_of_group(g).is_empty();
+        obs.groups().children(g).is_empty();
     }
 
     #[test]
@@ -111,9 +100,9 @@ mod tests {
         let g = objects.add_group(identity());
         assert_eq!(g.index, 0);
         let i = objects.add_shape_to_group(Shape::sphere(), identity(), g);
-        assert!(!objects.children_of_group(g).is_empty());
+        assert!(!objects.groups().children(g).is_empty());
         assert_eq!(i, ShapeIndex::new(0));
-        let i = objects.children_of_group(g)[0];
+        let i = objects.groups().children(g)[0];
         assert_eq!(i, ObjectIndex::Shape(ShapeIndex::new(0)));
         assert_eq!(objects.parent_of_object(i),
                    Parent::Group(g));
@@ -124,7 +113,7 @@ mod tests {
         let mut objects = ObjectStore::new();
         let g = objects.add_group(identity());
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
-        let is = g.local_intersect(&r, &objects);
+        let is = objects.groups().local_intersect(g, &r, &objects);
         assert!(is.is_empty());
     }
 
@@ -138,7 +127,7 @@ mod tests {
         let s2_transform = translation(&Vector::new(5., 0., 0.));
         let _s2 = objects.add_shape_to_group(Shape::sphere(), s2_transform, g);
         let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
-        let is = g.local_intersect(&r, &objects);
+        let is = objects.groups().local_intersect(g, &r, &objects);
         assert_eq!(is.len(), 4);
         assert_eq!(is[0].shape_index, s1);
         assert_eq!(is[1].shape_index, s1);

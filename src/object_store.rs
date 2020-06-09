@@ -213,7 +213,7 @@ impl ObjectStore {
                 intersections
             }
             ObjectIndex::Group(grp) => {
-                grp.local_intersect(&local_ray, &self)
+                self.groups.local_intersect(grp, &local_ray, &self)
             }
         }
     }
@@ -226,8 +226,9 @@ impl ObjectStore {
         self.parents.parent_of(obj.into())
     }
 
-    pub fn children_of_group(&self, group: GroupIndex) -> &[ObjectIndex] {
-        &self.groups.children(group)
+    #[cfg(test)]
+    pub fn groups(&self) -> &Groups {
+        &self.groups
     }
 
     pub fn get_transform_of_object(&self, i: ObjectIndex) -> &Transform {
