@@ -30,30 +30,9 @@ pub fn load_world_and_cameras_from_str(s: &str)
                     let light = load_light(&entry);
                     world.add_light(light);
                 },
-                "plane" => {
-                    let (plane, transform, group) = load_plane(&entry, &materials, &groups);
-                    if let Some(group) = group {
-                        world.add_shape_to_group(plane, transform, group);
-                    } else {
-                        world.add_shape(plane, transform);
-                    }
-                },
-                "sphere" => {
-                    let (sphere, transform, group) = load_sphere(&entry, &materials, &groups);
-                    if let Some(group) = group {
-                        world.add_shape_to_group(sphere, transform, group);
-                    } else {
-                        world.add_shape(sphere, transform);
-                    }
-                },
-                "cube" => {
-                    let (cube, transform, group) = load_cube(&entry, &materials, &groups);
-                    if let Some(group) = group {
-                        world.add_shape_to_group(cube, transform, group);
-                    } else {
-                        world.add_shape(cube, transform);
-                    }
-                },
+                "plane" => load_plane(&entry, &mut world, &materials, &groups),
+                "sphere" => load_sphere(&entry, &mut world, &materials, &groups),
+                "cube" => load_cube(&entry, &mut world, &materials, &groups),
                 unknown => { // TODO: error
                     println!("trying to add unknown object: {}", unknown);
                 }
@@ -94,34 +73,25 @@ fn load_light(entry: &Yaml) -> PointLight {
     PointLight::new(position, color)
 }
 
-fn load_sphere(entry: &Yaml, materials: &MaterialStore, groups: &GroupStore)
-                                    -> (Shape, Transform, Option<GroupIndex>) {
-    let mut sphere = Shape::sphere();
-    let (transform, group) = load_shape_properties(&mut sphere, entry,
-                                                   materials, groups);
-    (sphere, transform, group)
+fn load_sphere(entry: &Yaml, world: &mut World,
+               materials: &MaterialStore, groups: &GroupStore) {
+    load_shape_properties(Shape::sphere(), entry, world, materials, groups);
 }
 
-fn load_plane(entry: &Yaml, materials: &MaterialStore, groups: &GroupStore)
-                                    -> (Shape, Transform, Option<GroupIndex>) {
-    let mut plane = Shape::plane();
-    let (transform, group) = load_shape_properties(&mut plane, entry,
-                                                   materials, groups);
-    (plane, transform, group)
+fn load_plane(entry: &Yaml, world: &mut World,
+              materials: &MaterialStore, groups: &GroupStore) {
+    load_shape_properties(Shape::plane(), entry, world, materials, groups);
 }
 
-fn load_cube(entry: &Yaml, materials: &MaterialStore, groups: &GroupStore)
-                                    -> (Shape, Transform, Option<GroupIndex>) {
-    let mut cube = Shape::cube();
-    let (transform, group) = load_shape_properties(&mut cube, entry,
-                                                   materials, groups);
-    (cube, transform, group)
+fn load_cube(entry: &Yaml, world: &mut World,
+             materials: &MaterialStore, groups: &GroupStore) {
+    load_shape_properties(Shape::cube(), entry, world, materials, groups);
 }
 
-fn load_shape_properties(shape: &mut Shape, entry: &Yaml,
+fn load_shape_properties(mut shape: Shape, entry: &Yaml,
+                         world: &mut World,
                          materials: &MaterialStore,
-                         groups: &GroupStore)
-                                    -> (Transform, Option<GroupIndex>) {
+                         groups: &GroupStore) {
     let mut group = None;
     let mut transform = identity();
     for (key, entry) in entry.as_hash().unwrap().iter() {
@@ -147,7 +117,11 @@ fn load_shape_properties(shape: &mut Shape, entry: &Yaml,
             }
         }
     }
-    (transform, group)
+    if let Some(group) = group {
+        world.add_shape_to_group(shape, transform, group);
+    } else {
+        world.add_shape(shape, transform);
+    }
 }
 
 fn parse_point(entry: &Yaml) -> Point {
