@@ -8,6 +8,7 @@ extern crate yaml_rust;
 pub mod camera;
 pub mod canvas;
 pub mod color;
+pub mod csg;
 pub mod geometry;
 pub mod group;
 pub mod intersections;

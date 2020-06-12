@@ -8,7 +8,7 @@ use crate::geometry::{Point, Vector};
 use crate::material::Material;
 use crate::rays::Ray;
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct ShapeIndex {
     pub index: usize,
 }

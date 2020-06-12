@@ -1,7 +1,7 @@
 use std::ops::Index;
 use crate::shapes::ShapeIndex;
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Intersection {
     pub t: f64,
     pub shape_index: ShapeIndex,
@@ -32,6 +32,14 @@ impl Intersections {
 
     pub fn hit(&self) -> Option<Intersection> {
         self.intersections.iter().find(|i| i.t >= 0.).copied()
+    }
+
+    pub fn add_intersection(&mut self, intersection: Intersection) {
+        let t = &intersection.t;
+        let pos = self.intersections.binary_search_by(|i| i.t.partial_cmp(t)
+                                                             .unwrap())
+                                    .unwrap_or_else(|e| e);
+        self.intersections.insert(pos, intersection);
     }
 
     pub fn add_intersections(&mut self, shp_index: ShapeIndex,
