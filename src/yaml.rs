@@ -117,10 +117,11 @@ fn load_shape_properties(mut shape: Shape, entry: &Yaml,
             }
         }
     }
+    let shape = world.add_shape(shape, transform);
     if let Some(group) = group {
-        world.add_shape_to_group(shape, transform, group);
+        world.set_group_of(shape.into(), group);
     } else {
-        world.add_shape(shape, transform);
+        world.add_object_to_scene(shape.into());
     }
 }
 
@@ -204,7 +205,7 @@ impl GroupStore {
         let entry = entry.as_hash().unwrap();
         let mut name: Option<&str> = None;
         let mut parent: Option<GroupIndex> = None;
-        let mut transform: Option<Transform> = None;
+        let mut transform = identity();
         for (key, entry) in entry.iter() {
             match key.as_str().unwrap() {
                 "name" => {
@@ -216,7 +217,7 @@ impl GroupStore {
                     parent = Some(self.groups[name]);
                 },
                 "transform" => {
-                    transform = Some(parse_transform(&entry));
+                    transform = parse_transform(&entry);
                 },
                 "define" => {
                     // ignore define: group
@@ -227,17 +228,12 @@ impl GroupStore {
                 }
             }
         }
-        let transform = if let Some(transform) = transform {
-            transform
+        let group = world.add_group(transform);
+        if let Some(parent) = parent {
+            world.set_group_of(group.into(), parent);
         } else {
-            identity()
-        };
-        let group =
-            if let Some(parent) = parent {
-                world.add_subgroup(transform, parent)
-            } else {
-                world.add_group(transform)
-            };
+            world.add_object_to_scene(group.into());
+        }
         if let Some(name) = name {
             self.add(name, group);
         } else {

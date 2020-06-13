@@ -1,4 +1,5 @@
 use crate::color::Color;
+use crate::csg::{CsgIndex, CsgOperator};
 use crate::geometry::{Point, reflect, Transform, Vector};
 use crate::group::GroupIndex;
 use crate::intersections::{Intersection, Intersections};
@@ -39,29 +40,28 @@ impl WorldBuilder {
 
     pub fn add_shape(&mut self, shape: Shape, transform: Transform)
                                                     -> ShapeIndex {
-        let i = self.objects.add_shape(shape, transform);
-        self.scene.push(ObjectIndex::Shape(i));
-        i
+        self.objects.add_shape(shape, transform)
     }
 
     pub fn add_group(&mut self, transform: Transform) -> GroupIndex {
-        let group = self.objects.add_group(transform);
-        self.scene.push(ObjectIndex::Group(group));
-        group
+        self.objects.add_group(transform)
     }
 
-    pub fn add_subgroup(&mut self, transform: Transform, g: GroupIndex)
-                                                        -> GroupIndex {
-        let subgroup = self.objects.add_group(transform);
-        self.objects.set_group_of(subgroup.into(), g);
-        subgroup
+    pub fn set_group_of(&mut self, obj: ObjectIndex, group: GroupIndex) {
+        self.objects.set_group_of(obj, group);
     }
 
-    pub fn add_shape_to_group(&mut self, shape: Shape, transform: Transform,
-                              group: GroupIndex) -> ShapeIndex {
-        let shape = self.objects.add_shape(shape, transform);
-        self.objects.set_group_of(shape.into(), group);
-        shape
+    pub fn add_csg<O: Into<ObjectIndex>>(&mut self,
+                                         operator: CsgOperator,
+                                         operands: (O, O),
+                                         transform: Transform) -> CsgIndex {
+        let operands: (ObjectIndex, ObjectIndex) = (operands.0.into(),
+                                                    operands.1.into());
+        self.objects.add_csg(operator, operands, transform)
+    }
+
+    pub fn add_object_to_scene(&mut self, obj: ObjectIndex) {
+        self.scene.push(obj);
     }
 
     pub fn add_light(&mut self, light: PointLight) -> usize {
@@ -341,9 +341,11 @@ pub fn default_world() -> World {
     let mut w = WorldBuilder::new();
     w.add_light(light);
     use crate::geometry::identity;
-    w.add_shape(s1, identity());
+    let s1 = w.add_shape(s1, identity());
     use crate::geometry::scaling;
-    w.add_shape(s2, scaling(0.5, 0.5, 0.5));
+    let s2 = w.add_shape(s2, scaling(0.5, 0.5, 0.5));
+    w.add_object_to_scene(s1.into());
+    w.add_object_to_scene(s2.into());
     w.build()
 }
 
@@ -400,6 +402,7 @@ mod tests {
         m.pattern = Pattern::uniform(red);
         shape.set_material(m);
         let indx = w.add_shape(shape, identity());
+        w.add_object_to_scene(indx.into());
         let w = w.build();
         let i = Intersection::new(4., indx);
         let is = Intersections::from_vec(vec![i]);
@@ -423,6 +426,7 @@ mod tests {
         m.pattern = Pattern::uniform(red);
         shape.set_material(m);
         let indx = w.add_shape(shape, identity());
+        w.add_object_to_scene(indx.into());
         let w = w.build();
         let i = Intersection::new(1., indx);
         let is = Intersections::from_vec(vec![i]);
@@ -543,8 +547,11 @@ mod tests {
         let mut w = WorldBuilder::new();
         w.add_light(PointLight::new(Point::new(0., 0., -10.),
                                     Color::white()));
-        w.add_shape(Shape::sphere(), identity());
-        w.add_shape(Shape::sphere(), translation(&Vector::new(0., 0., 10.)));
+        let s1 = w.add_shape(Shape::sphere(), identity());
+        let s2 = w.add_shape(Shape::sphere(),
+                             translation(&Vector::new(0., 0., 10.)));
+        w.add_object_to_scene(s1.into());
+        w.add_object_to_scene(s2.into());
         let w = w.build();
         let r = Ray::new(Point::new(0., 0., 5.), Vector::new(0., 0., 1.));
         let i = Intersection::new(4., ShapeIndex::new(1));
@@ -574,7 +581,9 @@ mod tests {
 
     fn offset_test_world() -> World {
         let mut w = WorldBuilder::new();
-        w.add_shape(Shape::sphere(), translation(&Vector::new(0., 0., 1.)));
+        let s = w.add_shape(Shape::sphere(),
+                            translation(&Vector::new(0., 0., 1.)));
+        w.add_object_to_scene(s.into());
         w.build()
     }
 
@@ -589,6 +598,7 @@ mod tests {
     fn precomputing_the_reflection_vector() {
         let mut w = WorldBuilder::new();
         let s = w.add_shape(Shape::plane(), identity());
+        w.add_object_to_scene(s.into());
         let w = w.build();
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 1., -1.),
@@ -619,7 +629,8 @@ mod tests {
         let mut m = Material::new();
         m.shader.reflective = 0.5;
         shape.set_material(m);
-        w.add_shape(shape, translation(&Vector::new(0., -1., 0.)));
+        let s = w.add_shape(shape, translation(&Vector::new(0., -1., 0.)));
+        w.add_object_to_scene(s.into());
         let w = w.build();
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., -3.),
@@ -639,7 +650,8 @@ mod tests {
         let mut m = Material::new();
         m.shader.reflective = 0.5;
         shape.set_material(m);
-        w.add_shape(shape, translation(&Vector::new(0., -1., 0.)));
+        let s = w.add_shape(shape, translation(&Vector::new(0., -1., 0.)));
+        w.add_object_to_scene(s.into());
         let w = w.build();
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., -3.),
@@ -658,7 +670,8 @@ mod tests {
         let mut m = Material::new();
         m.shader.reflective = 0.5;
         shape.set_material(m);
-        w.add_shape(shape, translation(&Vector::new(0., -1., 0.)));
+        let s = w.add_shape(shape, translation(&Vector::new(0., -1., 0.)));
+        w.add_object_to_scene(s.into());
         let w = w.build();
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., -3.),
@@ -680,10 +693,12 @@ mod tests {
         m.shader.reflective = 1.;
         let mut lower = Shape::plane();
         lower.set_material(m.clone());
-        w.add_shape(lower, translation(&Vector::new(0., -1., 0.)));
+        let lower = w.add_shape(lower, translation(&Vector::new(0., -1., 0.)));
         let mut upper = Shape::plane();
         upper.set_material(m.clone());
-        w.add_shape(upper, translation(&Vector::new(0., 1., 0.)));
+        let upper = w.add_shape(upper, translation(&Vector::new(0., 1., 0.)));
+        w.add_object_to_scene(lower.into());
+        w.add_object_to_scene(upper.into());
         let w = w.build();
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 1., 0.));
         let _ = w.color_at(&r, 4); // should terminate successfully
@@ -704,7 +719,9 @@ mod tests {
         let mut m = *s.get_material();
         m.shader.refractive_index = refractive_index;
         s.set_material(m);
-        w.add_shape(s, transform)
+        let s = w.add_shape(s, transform);
+        w.add_object_to_scene(s.into());
+        s
     }
 
     #[test]
@@ -809,20 +826,7 @@ mod tests {
 
     #[test]
     fn shade_hit_with_a_transparent_material() {
-        let mut w = default_world().modify();
-        let mut floor = Shape::plane();
-        let mut m = Material::new();
-        m.shader.transparency = 0.5;
-        m.shader.refractive_index = 1.5;
-        floor.set_material(m);
-        let floor = w.add_shape(floor, translation(&Vector::new(0., -1., 0.)));
-        let mut ball = Shape::sphere();
-        let mut m = Material::new();
-        m.pattern = Pattern::uniform(Color::new(1., 0., 0.));
-        m.shader.ambient = 0.5;
-        ball.set_material(m);
-        w.add_shape(ball, translation(&Vector::new(0., -3.5, -0.5)));
-        let w = w.build();
+        let (w, floor) = transparency_test_world();
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., -3.),
                          Vector::new(0., -1./sqrt2, 1./sqrt2));
@@ -834,11 +838,35 @@ mod tests {
         assert_relative_eq!(color, expected, max_relative = 1e-4);
     }
 
+    fn transparency_test_world() -> (World, ShapeIndex) {
+        let mut w = default_world().modify();
+        let mut floor = Shape::plane();
+        let mut m = Material::new();
+        m.shader.transparency = 0.5;
+        m.shader.refractive_index = 1.5;
+        floor.set_material(m);
+        let floor = w.add_shape(floor, translation(&Vector::new(0., -1., 0.)));
+        w.add_object_to_scene(floor.into());
+        let mut ball = Shape::sphere();
+        let mut m = Material::new();
+        m.pattern = Pattern::uniform(Color::new(1., 0., 0.));
+        m.shader.ambient = 0.5;
+        ball.set_material(m);
+        let ball = w.add_shape(ball, translation(&Vector::new(0., -3.5, -0.5)));
+        w.add_object_to_scene(ball.into());
+        (w.build(), floor)
+    }
+
+    fn world_with_glass_sphere() -> World {
+        let mut w = WorldBuilder::new();
+        let s = w.add_shape(glass_sphere(), identity());
+        w.add_object_to_scene(s.into());
+        w.build()
+    }
+
     #[test]
     fn schlick_approximation_under_total_internal_reflection() {
-        let mut w = WorldBuilder::new();
-        w.add_shape(glass_sphere(), identity());
-        let w = w.build();
+        let w = world_with_glass_sphere();
         let x = 1./f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., x), Vector::new(0., 1., 0.));
         let s = ShapeIndex::new(0);
@@ -852,9 +880,7 @@ mod tests {
 
     #[test]
     fn schlick_approximation_with_perpendicular_viewing_angle() {
-        let mut w = WorldBuilder::new();
-        w.add_shape(glass_sphere(), identity());
-        let w = w.build();
+        let w = world_with_glass_sphere();
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 1., 0.));
         let s = ShapeIndex::new(0);
         let is = Intersections::from_vec(vec![Intersection::new(-1., s),
@@ -867,9 +893,7 @@ mod tests {
 
     #[test]
     fn schlick_approximation_with_small_angle_and_n2_larger_than_n1() {
-        let mut w = WorldBuilder::new();
-        w.add_shape(glass_sphere(), identity());
-        let w = w.build();
+        let w = world_with_glass_sphere();
         let r = Ray::new(Point::new(0., 0.99, -2.), Vector::new(0., 0., 1.));
         let s = ShapeIndex::new(0);
         let is = Intersections::from_vec(vec![Intersection::new(1.8589, s)]);
@@ -880,21 +904,10 @@ mod tests {
 
     #[test]
     fn shade_hit_with_reflective_transparent_material() {
-        let mut w = default_world().modify();
-        let mut floor = Shape::plane();
-        let mut m = Material::new();
+        let (mut w, floor) = transparency_test_world();
+        let mut m = w.objects.get_material_of(floor).clone();
         m.shader.reflective = 0.5;
-        m.shader.transparency = 0.5;
-        m.shader.refractive_index = 1.5;
-        floor.set_material(m);
-        let floor = w.add_shape(floor, translation(&Vector::new(0., -1., 0.)));
-        let mut ball = Shape::sphere();
-        let mut m = Material::new();
-        m.pattern = Pattern::uniform(Color::new(1., 0., 0.));
-        m.shader.ambient = 0.5;
-        ball.set_material(m);
-        w.add_shape(ball, translation(&Vector::new(0., -3.5, -0.5)));
-        let w = w.build();
+        w.objects.set_material_of(floor, m);
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., -3.),
                          Vector::new(0., -1./sqrt2, 1./sqrt2));
@@ -910,9 +923,12 @@ mod tests {
     fn parents_in_group_hierarchy() {
         let mut world = WorldBuilder::new();
         let g1 = world.add_group(rotation_y(std::f64::consts::PI/2.));
-        let g2 = world.add_subgroup(scaling(2., 2., 2.), g1);
-        let si = world.add_shape_to_group(Shape::sphere(),
-                            translation(&Vector::new(5., 0., 0.)), g2);
+        let g2 = world.add_group(scaling(2., 2., 2.));
+        let si = world.add_shape(Shape::sphere(),
+                                 translation(&Vector::new(5., 0., 0.)));
+        world.add_object_to_scene(g1.into());
+        world.set_group_of(g2.into(), g1);
+        world.set_group_of(si.into(), g2);
         let world = world.build();
         assert_eq!(world.objects.parent_of_object(si), Parent::Group(g2));
         assert_eq!(world.objects.parent_of_object(g2), Parent::Group(g1));
@@ -923,9 +939,12 @@ mod tests {
     fn converting_a_point_from_world_to_object_space() {
         let mut world = WorldBuilder::new();
         let g1 = world.add_group(rotation_y(std::f64::consts::PI/2.));
-        let g2 = world.add_subgroup(scaling(2., 2., 2.), g1);
-        let si = world.add_shape_to_group(Shape::sphere(),
-                        translation(&Vector::new(5., 0., 0.)), g2);
+        let g2 = world.add_group(scaling(2., 2., 2.));
+        let si = world.add_shape(Shape::sphere(),
+                                 translation(&Vector::new(5., 0., 0.)));
+        world.add_object_to_scene(g1.into());
+        world.set_group_of(g2.into(), g1);
+        world.set_group_of(si.into(), g2);
         let world = world.build();
         let p = world.objects.world_to_object(si.into(),
                                               &Point::new(-2., 0., -10.));
@@ -936,9 +955,12 @@ mod tests {
     fn converting_a_normal_from_object_to_world_space() {
         let mut world = WorldBuilder::new();
         let g1 = world.add_group(rotation_y(std::f64::consts::PI/2.));
-        let g2 = world.add_subgroup(scaling(1., 2., 3.), g1);
-        let si = world.add_shape_to_group(Shape::sphere(),
-                        translation(&Vector::new(5., 0., 0.)), g2);
+        let g2 = world.add_group(scaling(1., 2., 3.));
+        let si = world.add_shape(Shape::sphere(),
+                                 translation(&Vector::new(5., 0., 0.)));
+        world.add_object_to_scene(g1.into());
+        world.set_group_of(g2.into(), g1);
+        world.set_group_of(si.into(), g2);
         let world = world.build();
         let x = f64::sqrt(3.) / 3.;
         let p = world.objects.normal_to_world(si.into(), &Vector::new(x, x, x));
@@ -950,9 +972,12 @@ mod tests {
     fn finding_the_normal_on_a_child_object() {
         let mut world = WorldBuilder::new();
         let g1 = world.add_group(rotation_y(std::f64::consts::PI/2.));
-        let g2 = world.add_subgroup(scaling(1., 2., 3.), g1);
-        let si = world.add_shape_to_group(Shape::sphere(),
-                        translation(&Vector::new(5., 0., 0.)), g2);
+        let g2 = world.add_group(scaling(1., 2., 3.));
+        let si = world.add_shape(Shape::sphere(),
+                                 translation(&Vector::new(5., 0., 0.)));
+        world.add_object_to_scene(g1.into());
+        world.set_group_of(g2.into(), g1);
+        world.set_group_of(si.into(), g2);
         let world = world.build();
         let sqrt3 = f64::sqrt(3.);
         let p = world.objects.normal_at(si,
@@ -967,7 +992,9 @@ mod tests {
         use crate::geometry::translation;
         let group = world.add_group(translation(&Vector::new(0., 2., 0.)));
         use crate::shapes::Shape;
-        world.add_shape_to_group(Shape::sphere(), identity(), group);
+        let s = world.add_shape(Shape::sphere(), identity());
+        world.set_group_of(s.into(), group);
+        world.add_object_to_scene(group.into());
         let world = world.build();
 
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
@@ -981,12 +1008,14 @@ mod tests {
     fn recursive_transformation_of_nested_groups() {
         let mut world = WorldBuilder::new();
         use crate::geometry::translation;
-        let group = world.add_group(translation(&Vector::new(0., 1., 0.)));
-        let group = world.add_subgroup(translation(&Vector::new(0., 1., 0.)),
-                                       group);
+        let group1 = world.add_group(translation(&Vector::new(0., 1., 0.)));
+        let group2 = world.add_group(translation(&Vector::new(0., 1., 0.)));
         use crate::shapes::Shape;
-        world.add_shape_to_group(Shape::cube(),
-                                 translation(&Vector::new(0., 1., 0.)), group);
+        let s = world.add_shape(Shape::cube(),
+                                translation(&Vector::new(0., 1., 0.)));
+        world.set_group_of(s.into(), group2);
+        world.set_group_of(group2.into(), group1);
+        world.add_object_to_scene(group1.into());
         let world = world.build();
 
         let r = Ray::new(Point::new(0., 3., -2.), Vector::new(0., 0., 1.));
