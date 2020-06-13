@@ -921,4 +921,22 @@ mod tests {
         // we do not get any intersections.
         assert!(xs.is_empty());
     }
+
+    #[test]
+    fn recursive_transformation_of_nested_groups() {
+        let mut world = World::new();
+        use crate::geometry::translation;
+        let group = world.add_group(translation(&Vector::new(0., 1., 0.)));
+        let group = world.add_subgroup(translation(&Vector::new(0., 1., 0.)),
+                                       group);
+        use crate::shapes::Shape;
+        world.add_shape_to_group(Shape::cube(),
+                                 translation(&Vector::new(0., 1., 0.)), group);
+
+        let r = Ray::new(Point::new(0., 3., -2.), Vector::new(0., 0., 1.));
+        // This requires that the bounding boxes of the nested groups are
+        // correctly computed.
+        let xs = world.intersect(&r);
+        assert_eq!(xs.len(), 2);
+    }
 }
