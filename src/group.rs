@@ -119,7 +119,8 @@ mod tests {
         let mut objects = ObjectStore::new();
         let g = objects.add_group(identity());
         assert_eq!(g.index, 0);
-        let i = objects.add_shape_to_group(Shape::sphere(), identity(), g);
+        let i = objects.add_shape(Shape::sphere(), identity());
+        objects.set_group_of(i.into(), g);
         assert!(!objects.groups().children(g).is_empty());
         assert_eq!(i, ShapeIndex::new(0));
         let i = objects.groups().children(g)[0];
@@ -142,11 +143,14 @@ mod tests {
     fn intersecting_a_ray_with_a_nonempty_group() {
         let mut objects = ObjectStore::new();
         let g = objects.add_group(identity());
-        let s0 = objects.add_shape_to_group(Shape::sphere(), identity(), g);
+        let s0 = objects.add_shape(Shape::sphere(), identity());
+        objects.set_group_of(s0.into(), g);
         let s1_transform = translation(&Vector::new(0., 0., -3.));
-        let s1 = objects.add_shape_to_group(Shape::sphere(), s1_transform, g);
+        let s1 = objects.add_shape(Shape::sphere(), s1_transform);
+        objects.set_group_of(s1.into(), g);
         let s2_transform = translation(&Vector::new(5., 0., 0.));
-        let _s2 = objects.add_shape_to_group(Shape::sphere(), s2_transform, g);
+        let s2 = objects.add_shape(Shape::sphere(), s2_transform);
+        objects.set_group_of(s2.into(), g);
         objects.set_bounds_of(g.into());
         let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
         let is = objects.groups().local_intersect(g, &r, &objects);
@@ -163,7 +167,8 @@ mod tests {
         let g = objects.add_group(scaling(2., 2., 2.));
         let s = Shape::sphere();
         let s_transform = translation(&Vector::new(5., 0., 0.));
-        objects.add_shape_to_group(s, s_transform, g);
+        let s = objects.add_shape(s, s_transform);
+        objects.set_group_of(s.into(), g);
         objects.set_bounds_of(g.into());
         let r = Ray::new(Point::new(10., 0., -10.), Vector::new(0., 0., 1.));
         let is = objects.intersect(g.into(), &r);
@@ -174,9 +179,10 @@ mod tests {
     fn bounding_box_of_group_with_a_single_object() {
         let mut objects = ObjectStore::new();
         let g = objects.add_group(scaling(2., 2., 2.));
-        objects.add_shape_to_group(Shape::sphere(), identity(), g);
+        let s = objects.add_shape(Shape::sphere(), identity());
+        objects.set_group_of(s.into(), g);
         objects.set_bounds_of(g.into());
-        let b = *objects.get_bounds_of_group(g);
+        let b = objects.local_bounds_of(g.into());
         assert_relative_eq!(b, Bounds::new(Point::new(-1., -1., -1.),
                                            Point::new(1., 1., 1.)));
     }
@@ -185,11 +191,13 @@ mod tests {
     fn bounding_box_of_group_with_two_objects() {
         let mut objects = ObjectStore::new();
         let g = objects.add_group(scaling(2., 2., 2.));
-        objects.add_shape_to_group(Shape::sphere(), identity(), g);
-        objects.add_shape_to_group(Shape::sphere(),
-                                   translation(&Vector::new(5., 0., 0.)), g);
+        let s = objects.add_shape(Shape::sphere(), identity());
+        objects.set_group_of(s.into(), g);
+        let s = objects.add_shape(Shape::sphere(),
+                                  translation(&Vector::new(5., 0., 0.)));
+        objects.set_group_of(s.into(), g);
         objects.set_bounds_of(g.into());
-        let b = *objects.get_bounds_of_group(g);
+        let b = objects.local_bounds_of(g.into());
         assert_relative_eq!(b, Bounds::new(Point::new(-1., -1., -1.),
                                            Point::new(6., 1., 1.)));
     }

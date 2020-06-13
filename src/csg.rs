@@ -24,14 +24,8 @@ pub enum CsgOperator {
 /// A collection of all CSGs
 pub struct CSGs {
     operators: Vec<CsgOperator>,
-    children: Vec<(Option<ObjectIndex>, Option<ObjectIndex>)>,
+    children: Vec<(ObjectIndex, ObjectIndex)>,
     bounds: Vec<Bounds>,
-}
-
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub enum CsgOperand {
-    Left,
-    Right,
 }
 
 impl CSGs {
@@ -51,24 +45,16 @@ impl CSGs {
         self.operators.is_empty()
     }
 
-    pub fn add_csg(&mut self, operator: CsgOperator) -> CsgIndex {
+    pub fn add_csg(&mut self, operator: CsgOperator,
+                   left: ObjectIndex, right: ObjectIndex) -> CsgIndex {
         self.operators.push(operator);
-        self.children.push((None, None));
+        self.children.push((left, right));
         self.bounds.push(Bounds::empty());
         let index = self.bounds.len() - 1;
         CsgIndex::new(index)
     }
 
-    pub fn add_left_operand_to(&mut self, csg: CsgIndex, left: ObjectIndex) {
-        self.children[csg.index].0 = Some(left);
-    }
-
-    pub fn add_right_operand_to(&mut self, csg: CsgIndex, right: ObjectIndex) {
-        self.children[csg.index].1 = Some(right);
-    }
-
-    pub fn children(&self, csg: CsgIndex)
-                        -> (Option<ObjectIndex>, Option<ObjectIndex>) {
+    pub fn children(&self, csg: CsgIndex) -> (ObjectIndex, ObjectIndex) {
         self.children[csg.index]
     }
 
@@ -87,14 +73,8 @@ impl CSGs {
         }
 
         let (left, right) = self.children[csg.index];
-        let mut intersections = match left {
-            Some(left) => objects.intersect(left, ray),
-            None => Intersections::new(),
-        };
-        let right_intersections = match right {
-            Some(right) => objects.intersect(right, ray),
-            None => Intersections::new(),
-        };
+        let mut intersections = objects.intersect(left, ray);
+        let right_intersections = objects.intersect(right, ray);
 
         let mut left_shapes: Vec<ShapeIndex>
             = intersections.iter().map(|&i| i.shape_index).collect();
@@ -162,13 +142,12 @@ mod tests {
     #[test]
     fn constructing_a_csg() {
         let mut objects = ObjectStore::new();
-        let c = objects.add_csg(CsgOperator::Union, identity());
+        let l = objects.add_shape(Shape::sphere(), identity());
+        let r = objects.add_shape(Shape::cube(), identity());
+        let c = objects.add_csg(CsgOperator::Union, (l, r), identity());
         assert_eq!(c.index, 0);
-        use CsgOperand::*;
-        let l = objects.add_shape_to_csg(Shape::sphere(), identity(), c, Left);
-        let r = objects.add_shape_to_csg(Shape::cube(), identity(), c, Right);
         assert_eq!(objects.csgs().children[c.index],
-                   (Some(ObjectIndex::Shape(l)), Some(ObjectIndex::Shape(r))));
+                   (ObjectIndex::Shape(l), ObjectIndex::Shape(r)));
         assert_eq!(objects.parent_of_object(l), Parent::CSG(c));
         assert_eq!(objects.parent_of_object(r), Parent::CSG(c));
     }
@@ -231,11 +210,11 @@ mod tests {
     fn check_filtering_of_intersections(op: CsgOperator,
                                         x0: usize, x1: usize) {
         let mut objects = ObjectStore::new();
-        let c = objects.add_csg(op, identity());
-        use CsgOperand::*;
-        let l = objects.add_shape_to_csg(Shape::sphere(), identity(), c, Left);
-        let r = objects.add_shape_to_csg(Shape::cube(), identity(), c, Right);
-        use crate::intersections::{Intersection};
+        let l = objects.add_shape(Shape::sphere(), identity());
+        let r = objects.add_shape(Shape::cube(), identity());
+        let c = objects.add_csg(op, (l, r), identity());
+        objects.set_bounds_of(c.into());
+        use crate::intersections::Intersection;
         let xs = vec![Intersection::new(1., l),
                       Intersection::new(2., r),
                       Intersection::new(3., l),
@@ -251,10 +230,9 @@ mod tests {
     #[test]
     fn ray_misses_csg_object() {
         let mut objects = ObjectStore::new();
-        let c = objects.add_csg(CsgOperator::Union, identity());
-        use CsgOperand::*;
-        objects.add_shape_to_csg(Shape::sphere(), identity(), c, Left);
-        objects.add_shape_to_csg(Shape::cube(), identity(), c, Right);
+        let l = objects.add_shape(Shape::sphere(), identity());
+        let r = objects.add_shape(Shape::cube(), identity());
+        let c = objects.add_csg(CsgOperator::Union, (l, r), identity());
         let ray = Ray::new(Point::new(0., 2., -5.), Vector::new(0., 0., 1.));
         let xs = objects.csgs().local_intersect(c, &ray, &objects);
         assert!(xs.is_empty());
@@ -263,11 +241,10 @@ mod tests {
     #[test]
     fn ray_hits_a_csg_object() {
         let mut objects = ObjectStore::new();
-        let c = objects.add_csg(CsgOperator::Union, identity());
-        use CsgOperand::*;
-        let l = objects.add_shape_to_csg(Shape::sphere(), identity(), c, Left);
-        let r = objects.add_shape_to_csg(Shape::sphere(),
-                    translation(&Vector::new(0., 0., 0.5)), c, Right);
+        let l = objects.add_shape(Shape::sphere(), identity());
+        let r = objects.add_shape(Shape::sphere(),
+                                  translation(&Vector::new(0., 0., 0.5)));
+        let c = objects.add_csg(CsgOperator::Union, (l, r), identity());
         objects.set_bounds_of(c.into());
         let ray = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
         let xs = objects.csgs().local_intersect(c, &ray, &objects);

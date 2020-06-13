@@ -1,5 +1,5 @@
 use crate::color::Color;
-use crate::csg::{CsgIndex, CsgOperand, CsgOperator, CSGs};
+use crate::csg::{CsgIndex, CsgOperator, CSGs};
 use crate::geometry::{Point, Transform, Vector};
 use crate::group::{GroupIndex, Groups};
 use crate::intersections::Intersections;
@@ -201,6 +201,7 @@ impl ObjectStore {
     pub fn is_empty(&self) -> bool {
         self.shapes.is_empty()
             && self.groups.is_empty()
+            && self.csgs.is_empty()
     }
 
     pub fn add_shape(&mut self, shape: Shape, transform: Transform)
@@ -217,79 +218,22 @@ impl ObjectStore {
         self.groups.add_group()
     }
 
-    pub fn add_csg(&mut self, operator: CsgOperator, transform: Transform)
-                                                                -> CsgIndex {
+    pub fn add_csg<O: Into<ObjectIndex>>(&mut self,
+                                         operator: CsgOperator,
+                                         operands: (O, O),
+                                         transform: Transform) -> CsgIndex {
         self.parents.add_csg_parent();
         self.transforms.add_csg_transform(transform);
-        self.csgs.add_csg(operator)
+        let (left, right) = (operands.0.into(), operands.1.into());
+        let c = self.csgs.add_csg(operator, left, right);
+        self.parents.set_parent_of(left, c.into());
+        self.parents.set_parent_of(right, c.into());
+        c
     }
 
-    pub fn add_subgroup(&mut self, transform: Transform, group: GroupIndex)
-                                                                -> GroupIndex {
-        let sub_group = self.add_group(transform);
-        let i = ObjectIndex::Group(sub_group);
-        self.add_child_to_group(i, group);
-        self.parents.set_parent_of(i, Parent::Group(group));
-        sub_group
-    }
-
-    pub fn add_subcsg(&mut self, operator: CsgOperator,
-                      transform: Transform, group: GroupIndex) -> CsgIndex {
-        let sub_csg = self.add_csg(operator, transform);
-        let i = ObjectIndex::CSG(sub_csg);
-        self.add_child_to_group(i, group);
-        self.parents.set_parent_of(i, Parent::Group(group));
-        sub_csg
-    }
-
-    pub fn add_shape_to_group(&mut self, shape: Shape, transform: Transform,
-                              group: GroupIndex) -> ShapeIndex {
-        let i = self.add_shape(shape, transform);
-        let obj = ObjectIndex::Shape(i);
-        self.add_child_to_group(obj, group);
-        self.parents.set_parent_of(obj, group.into());
-        i
-    }
-
-    fn add_child_to_group(&mut self, obj: ObjectIndex, group: GroupIndex) {
+    pub fn set_group_of(&mut self, obj: ObjectIndex, group: GroupIndex) {
         self.groups.children_mut(group).push(obj);
-    }
-
-    pub fn add_subgroup_to_csg(&mut self, transform: Transform, csg: CsgIndex,
-                               pos: CsgOperand) -> GroupIndex {
-        let sub_group = self.add_group(transform);
-        let i = ObjectIndex::Group(sub_group);
-        self.add_child_to_csg(i, csg, pos);
-        self.parents.set_parent_of(i, Parent::CSG(csg));
-        sub_group
-    }
-
-    pub fn add_subcsg_to_csg(&mut self, operator: CsgOperator,
-                             transform: Transform, csg: CsgIndex,
-                             pos: CsgOperand) -> CsgIndex {
-        let sub_csg = self.add_csg(operator, transform);
-        let i = ObjectIndex::CSG(sub_csg);
-        self.add_child_to_csg(i, csg, pos);
-        self.parents.set_parent_of(i, Parent::CSG(csg));
-        sub_csg
-    }
-
-    pub fn add_shape_to_csg(&mut self, shape: Shape, transform: Transform,
-                            csg: CsgIndex, pos: CsgOperand) -> ShapeIndex {
-        let i = self.add_shape(shape, transform);
-        let obj = ObjectIndex::Shape(i);
-        self.add_child_to_csg(obj, csg, pos);
-        self.parents.set_parent_of(obj, csg.into());
-        i
-    }
-
-    fn add_child_to_csg(&mut self, obj: ObjectIndex, csg: CsgIndex,
-                        pos: CsgOperand) {
-        use CsgOperand::*;
-        match pos {
-            Left => self.csgs.add_left_operand_to(csg, obj),
-            Right => self.csgs.add_right_operand_to(csg, obj),
-        };
+        self.parents.set_parent_of(obj, Parent::Group(group));
     }
 
     pub fn intersect(&self, i: ObjectIndex, ray: &Ray) -> Intersections {
@@ -309,10 +253,6 @@ impl ObjectStore {
                 self.csgs.local_intersect(csg, &local_ray, &self)
             }
         }
-    }
-
-    pub fn get_bounds_of_group(&self, group: GroupIndex) -> &Bounds {
-        self.groups.local_bounds_of(group)
     }
 
     pub fn parent_of_object<O: Into<ObjectIndex>>(&self, obj: O) -> Parent {
@@ -429,17 +369,13 @@ impl ObjectStore {
             },
             ObjectIndex::CSG(csg) => {
                 let mut bounds = Bounds::empty();
-                let children = self.csgs.children(csg);
-                if let Some(child) = children.0 {
-                    let child_bounds = self.set_bounds_of(child.into())
-                            .to_global(self.get_transform_of_object(child));
-                    bounds.merge_bounds(&child_bounds);
-                }
-                if let Some(child) = children.1 {
-                    let child_bounds = self.set_bounds_of(child.into())
-                            .to_global(self.get_transform_of_object(child));
-                    bounds.merge_bounds(&child_bounds);
-                }
+                let (left, right) = self.csgs.children(csg);
+                let left_bounds = self.set_bounds_of(left.into())
+                        .to_global(self.get_transform_of_object(left));
+                bounds.merge_bounds(&left_bounds);
+                let right_bounds = self.set_bounds_of(right.into())
+                        .to_global(self.get_transform_of_object(right));
+                bounds.merge_bounds(&right_bounds);
                 *self.csgs.bounds_mut(csg) = bounds;
                 bounds
             },

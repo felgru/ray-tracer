@@ -52,12 +52,16 @@ impl WorldBuilder {
 
     pub fn add_subgroup(&mut self, transform: Transform, g: GroupIndex)
                                                         -> GroupIndex {
-        self.objects.add_subgroup(transform, g)
+        let subgroup = self.objects.add_group(transform);
+        self.objects.set_group_of(subgroup.into(), g);
+        subgroup
     }
 
     pub fn add_shape_to_group(&mut self, shape: Shape, transform: Transform,
                               group: GroupIndex) -> ShapeIndex {
-        self.objects.add_shape_to_group(shape, transform, group)
+        let shape = self.objects.add_shape(shape, transform);
+        self.objects.set_group_of(shape.into(), group);
+        shape
     }
 
     pub fn add_light(&mut self, light: PointLight) -> usize {
