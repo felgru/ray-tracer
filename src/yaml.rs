@@ -11,14 +11,14 @@ use crate::light::PointLight;
 use crate::material::Material;
 use crate::patterns::Pattern;
 use crate::shapes::Shape;
-use crate::world::World;
+use crate::world::{World, WorldBuilder};
 
 pub fn load_world_and_cameras_from_str(s: &str)
         -> (World, Vec<Camera>) {
     // TODO: add error handling
     let docs = YamlLoader::load_from_str(s).unwrap();
     let doc = &docs[0];
-    let mut world = World::new();
+    let mut world = WorldBuilder::new();
     let mut cameras = Vec::<Camera>::new();
     let mut materials = MaterialStore::new();
     let mut groups = GroupStore::new();
@@ -50,7 +50,7 @@ pub fn load_world_and_cameras_from_str(s: &str)
             // TODO: error
         }
     }
-    (world, cameras)
+    (world.build(), cameras)
 }
 
 fn load_camera(entry: &Yaml) -> Camera {
@@ -73,23 +73,23 @@ fn load_light(entry: &Yaml) -> PointLight {
     PointLight::new(position, color)
 }
 
-fn load_sphere(entry: &Yaml, world: &mut World,
+fn load_sphere(entry: &Yaml, world: &mut WorldBuilder,
                materials: &MaterialStore, groups: &GroupStore) {
     load_shape_properties(Shape::sphere(), entry, world, materials, groups);
 }
 
-fn load_plane(entry: &Yaml, world: &mut World,
+fn load_plane(entry: &Yaml, world: &mut WorldBuilder,
               materials: &MaterialStore, groups: &GroupStore) {
     load_shape_properties(Shape::plane(), entry, world, materials, groups);
 }
 
-fn load_cube(entry: &Yaml, world: &mut World,
+fn load_cube(entry: &Yaml, world: &mut WorldBuilder,
              materials: &MaterialStore, groups: &GroupStore) {
     load_shape_properties(Shape::cube(), entry, world, materials, groups);
 }
 
 fn load_shape_properties(mut shape: Shape, entry: &Yaml,
-                         world: &mut World,
+                         world: &mut WorldBuilder,
                          materials: &MaterialStore,
                          groups: &GroupStore) {
     let mut group = None;
@@ -200,7 +200,7 @@ impl GroupStore {
         self.groups.insert(name.to_string(), group);
     }
 
-    fn parse(&mut self, entry: &Yaml, world: &mut World) {
+    fn parse(&mut self, entry: &Yaml, world: &mut WorldBuilder) {
         let entry = entry.as_hash().unwrap();
         let mut name: Option<&str> = None;
         let mut parent: Option<GroupIndex> = None;

@@ -56,7 +56,7 @@ impl Bounds {
         }
     }
 
-    pub fn global_corners(&self, t: &Transform) -> Vec<Point> {
+    pub fn to_global(self, t: &Transform) -> Self {
         let mut corners = Vec::with_capacity(8);
         for &x in &[self.min[0], self.max[0]] {
             for &y in &[self.min[1], self.max[1]] {
@@ -66,7 +66,7 @@ impl Bounds {
                 }
             }
         }
-        corners
+        Self::from_points(&corners)
     }
 }
 

@@ -67,6 +67,11 @@ impl CSGs {
         self.children[csg.index].1 = Some(right);
     }
 
+    pub fn children(&self, csg: CsgIndex)
+                        -> (Option<ObjectIndex>, Option<ObjectIndex>) {
+        self.children[csg.index]
+    }
+
     pub fn local_bounds_of(&self, group: CsgIndex) -> &Bounds {
         &self.bounds[group.index]
     }
@@ -263,6 +268,7 @@ mod tests {
         let l = objects.add_shape_to_csg(Shape::sphere(), identity(), c, Left);
         let r = objects.add_shape_to_csg(Shape::sphere(),
                     translation(&Vector::new(0., 0., 0.5)), c, Right);
+        objects.set_bounds_of(c.into());
         let ray = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
         let xs = objects.csgs().local_intersect(c, &ray, &objects);
         assert_eq!(xs.len(), 2);

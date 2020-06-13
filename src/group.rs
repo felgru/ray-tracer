@@ -37,6 +37,10 @@ impl Groups {
         GroupIndex::new(index)
     }
 
+    pub fn child_iter(&self, group: GroupIndex) -> GroupChildIter {
+        GroupChildIter::new(group)
+    }
+
     pub fn children(&self, group: GroupIndex) -> &Vec<ObjectIndex> {
         &self.children[group.index]
     }
@@ -70,6 +74,25 @@ impl Groups {
 impl GroupIndex {
     pub fn new(index: usize) -> Self {
         GroupIndex{index}
+    }
+}
+
+pub struct GroupChildIter {
+    group: GroupIndex,
+    child: usize,
+}
+
+impl GroupChildIter {
+    fn new(group: GroupIndex) -> Self {
+        Self{group, child: 0}
+    }
+
+    pub fn next(&mut self, groups: &Groups) -> Option<ObjectIndex> {
+        let children = groups.children(self.group);
+        if children.len() <= self.child { return None; }
+        let obj = children[self.child];
+        self.child += 1;
+        Some(obj)
     }
 }
 
@@ -109,6 +132,7 @@ mod tests {
     fn intersecting_a_ray_with_an_empty_group() {
         let mut objects = ObjectStore::new();
         let g = objects.add_group(identity());
+        objects.set_bounds_of(g.into());
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
         let is = objects.groups().local_intersect(g, &r, &objects);
         assert!(is.is_empty());
@@ -123,6 +147,7 @@ mod tests {
         let s1 = objects.add_shape_to_group(Shape::sphere(), s1_transform, g);
         let s2_transform = translation(&Vector::new(5., 0., 0.));
         let _s2 = objects.add_shape_to_group(Shape::sphere(), s2_transform, g);
+        objects.set_bounds_of(g.into());
         let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
         let is = objects.groups().local_intersect(g, &r, &objects);
         assert_eq!(is.len(), 4);
@@ -139,6 +164,7 @@ mod tests {
         let s = Shape::sphere();
         let s_transform = translation(&Vector::new(5., 0., 0.));
         objects.add_shape_to_group(s, s_transform, g);
+        objects.set_bounds_of(g.into());
         let r = Ray::new(Point::new(10., 0., -10.), Vector::new(0., 0., 1.));
         let is = objects.intersect(g.into(), &r);
         assert_eq!(is.len(), 2);
@@ -149,6 +175,7 @@ mod tests {
         let mut objects = ObjectStore::new();
         let g = objects.add_group(scaling(2., 2., 2.));
         objects.add_shape_to_group(Shape::sphere(), identity(), g);
+        objects.set_bounds_of(g.into());
         let b = *objects.get_bounds_of_group(g);
         assert_relative_eq!(b, Bounds::new(Point::new(-1., -1., -1.),
                                            Point::new(1., 1., 1.)));
@@ -161,6 +188,7 @@ mod tests {
         objects.add_shape_to_group(Shape::sphere(), identity(), g);
         objects.add_shape_to_group(Shape::sphere(),
                                    translation(&Vector::new(5., 0., 0.)), g);
+        objects.set_bounds_of(g.into());
         let b = *objects.get_bounds_of_group(g);
         assert_relative_eq!(b, Bounds::new(Point::new(-1., -1., -1.),
                                            Point::new(6., 1., 1.)));

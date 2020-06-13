@@ -253,12 +253,6 @@ impl ObjectStore {
 
     fn add_child_to_group(&mut self, obj: ObjectIndex, group: GroupIndex) {
         self.groups.children_mut(group).push(obj);
-        let child_transform = self.get_transform_of_object(obj);
-        let child_bounds = Bounds::from_points(
-            &self.local_bounds_of(obj)
-                 .global_corners(child_transform));
-        self.groups.bounds_mut(group).merge_bounds(&child_bounds);
-        // TODO: merge the updated bounds into the parents bounds
     }
 
     pub fn add_subgroup_to_csg(&mut self, transform: Transform, csg: CsgIndex,
@@ -296,12 +290,6 @@ impl ObjectStore {
             Left => self.csgs.add_left_operand_to(csg, obj),
             Right => self.csgs.add_right_operand_to(csg, obj),
         };
-        let child_transform = self.get_transform_of_object(obj);
-        let child_bounds = Bounds::from_points(
-            &self.local_bounds_of(obj)
-                 .global_corners(child_transform));
-        self.csgs.bounds_mut(csg).merge_bounds(&child_bounds);
-        // TODO: merge the updated bounds into the parents bounds
     }
 
     pub fn intersect(&self, i: ObjectIndex, ray: &Ray) -> Intersections {
@@ -423,6 +411,41 @@ impl ObjectStore {
             Shape(shp) => self.shapes[shp.index].local_bounds(),
             Group(grp) => *self.groups.local_bounds_of(grp),
             CSG(csg) => *self.csgs.local_bounds_of(csg),
+        }
+    }
+
+    pub fn set_bounds_of(&mut self, obj: ObjectIndex) -> Bounds {
+        match obj {
+            ObjectIndex::Group(group) => {
+                let mut bounds = Bounds::empty();
+                let mut children = self.groups.child_iter(group);
+                while let Some(child) = children.next(&self.groups) {
+                    let child_bounds = self.set_bounds_of(child.into())
+                            .to_global(self.get_transform_of_object(child));
+                    bounds.merge_bounds(&child_bounds);
+                }
+                *self.groups.bounds_mut(group) = bounds;
+                bounds
+            },
+            ObjectIndex::CSG(csg) => {
+                let mut bounds = Bounds::empty();
+                let children = self.csgs.children(csg);
+                if let Some(child) = children.0 {
+                    let child_bounds = self.set_bounds_of(child.into())
+                            .to_global(self.get_transform_of_object(child));
+                    bounds.merge_bounds(&child_bounds);
+                }
+                if let Some(child) = children.1 {
+                    let child_bounds = self.set_bounds_of(child.into())
+                            .to_global(self.get_transform_of_object(child));
+                    bounds.merge_bounds(&child_bounds);
+                }
+                *self.csgs.bounds_mut(csg) = bounds;
+                bounds
+            },
+            ObjectIndex::Shape(_) => {
+                self.local_bounds_of(obj)
+            },
         }
     }
 }

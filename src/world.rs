@@ -7,18 +7,33 @@ use crate::rays::Ray;
 use crate::object_store::{ObjectIndex, ObjectStore};
 use crate::shapes::{Shape, ShapeIndex};
 
-pub struct World {
+pub struct WorldBuilder {
     scene: Vec<ObjectIndex>,
     objects: ObjectStore,
     lights: Vec<PointLight>,
 }
 
-impl World {
+impl WorldBuilder {
     pub fn new() -> Self {
-        World{
+        WorldBuilder{
             scene: Vec::new(),
             objects: ObjectStore::new(),
             lights: Vec::new(),
+        }
+    }
+
+    pub fn build(mut self) -> World {
+        self.compute_bounds();
+        World{
+            scene: self.scene,
+            objects: self.objects,
+            lights: self.lights,
+        }
+    }
+
+    fn compute_bounds(&mut self) {
+        for &obj in self.scene.iter() {
+            self.objects.set_bounds_of(obj);
         }
     }
 
@@ -48,6 +63,26 @@ impl World {
     pub fn add_light(&mut self, light: PointLight) -> usize {
         self.lights.push(light);
         self.lights.len() - 1
+    }
+
+    pub fn set_transform_of(&mut self, i: ObjectIndex, t: Transform) {
+        self.objects.set_transform_of_object(i, t);
+    }
+}
+
+pub struct World {
+    scene: Vec<ObjectIndex>,
+    objects: ObjectStore,
+    lights: Vec<PointLight>,
+}
+
+impl World {
+    pub fn modify(self) -> WorldBuilder {
+        WorldBuilder{
+            scene: self.scene,
+            objects: self.objects,
+            lights: self.lights,
+        }
     }
 
     pub fn get_light(&self, i: usize) -> &PointLight {
@@ -161,10 +196,6 @@ impl World {
             Some(i) => i.t < distance,
             None    => false,
         }
-    }
-
-    pub fn set_transform_of(&mut self, i: ObjectIndex, t: Transform) {
-        self.objects.set_transform_of_object(i, t);
     }
 }
 
@@ -303,13 +334,13 @@ pub fn default_world() -> World {
 
     let s2 = Shape::sphere();
 
-    let mut w = World::new();
+    let mut w = WorldBuilder::new();
     w.add_light(light);
     use crate::geometry::identity;
     w.add_shape(s1, identity());
     use crate::geometry::scaling;
     w.add_shape(s2, scaling(0.5, 0.5, 0.5));
-    w
+    w.build()
 }
 
 #[cfg(test)]
@@ -323,7 +354,8 @@ mod tests {
 
     #[test]
     fn create_a_world() {
-        let w = World::new();
+        let w = WorldBuilder::new();
+        let w = w.build();
         assert!(w.objects.is_empty());
         assert!(w.lights.is_empty());
     }
@@ -357,16 +389,17 @@ mod tests {
 
     #[test]
     fn precompute_state_of_an_outside_hit() {
-        let mut w = default_world();
-        let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
+        let mut w = default_world().modify();
         let mut shape = Shape::sphere();
         let red = Color::new(1., 0., 0.);
         let mut m = Material::new();
         m.pattern = Pattern::uniform(red);
         shape.set_material(m);
         let indx = w.add_shape(shape, identity());
+        let w = w.build();
         let i = Intersection::new(4., indx);
         let is = Intersections::from_vec(vec![i]);
+        let r = Ray::new(Point::new(0., 0., -5.), Vector::new(0., 0., 1.));
         let comps = w.prepare_computations(&i, &r, &is);
         assert_relative_eq!(comps.t, i.t);
         assert_eq!(w.objects.get_material_of(comps.shape_index).pattern,
@@ -379,16 +412,17 @@ mod tests {
 
     #[test]
     fn precompute_state_of_an_inside_hit() {
-        let mut w = default_world();
-        let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
+        let mut w = default_world().modify();
         let mut shape = Shape::sphere();
         let red = Color::new(1., 0., 0.);
         let mut m = shape.get_material().clone();
         m.pattern = Pattern::uniform(red);
         shape.set_material(m);
         let indx = w.add_shape(shape, identity());
+        let w = w.build();
         let i = Intersection::new(1., indx);
         let is = Intersections::from_vec(vec![i]);
+        let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
         let comps = w.prepare_computations(&i, &r, &is);
         assert_relative_eq!(comps.t, i.t);
         assert_eq!(w.objects.get_material_of(comps.shape_index).pattern,
@@ -502,11 +536,12 @@ mod tests {
 
     #[test]
     fn shade_hit_is_given_an_intersection_in_shadow() {
-        let mut w = World::new();
+        let mut w = WorldBuilder::new();
         w.add_light(PointLight::new(Point::new(0., 0., -10.),
                                     Color::white()));
         w.add_shape(Shape::sphere(), identity());
         w.add_shape(Shape::sphere(), translation(&Vector::new(0., 0., 10.)));
+        let w = w.build();
         let r = Ray::new(Point::new(0., 0., 5.), Vector::new(0., 0., 1.));
         let i = Intersection::new(4., ShapeIndex::new(1));
         let is = Intersections::from_vec(vec![i]);
@@ -534,9 +569,9 @@ mod tests {
     }
 
     fn offset_test_world() -> World {
-        let mut w = World::new();
+        let mut w = WorldBuilder::new();
         w.add_shape(Shape::sphere(), translation(&Vector::new(0., 0., 1.)));
-        w
+        w.build()
     }
 
     fn offset_test_computations(w: &World) -> PreparedComputations {
@@ -548,8 +583,9 @@ mod tests {
 
     #[test]
     fn precomputing_the_reflection_vector() {
-        let mut w = World::new();
+        let mut w = WorldBuilder::new();
         let s = w.add_shape(Shape::plane(), identity());
+        let w = w.build();
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 1., -1.),
                          Vector::new(0., -1./sqrt2, 1./sqrt2));
@@ -574,12 +610,13 @@ mod tests {
 
     #[test]
     fn reflected_color_of_a_reflective_material() {
-        let mut w = default_world();
+        let mut w = default_world().modify();
         let mut shape = Shape::plane();
         let mut m = Material::new();
         m.shader.reflective = 0.5;
         shape.set_material(m);
         w.add_shape(shape, translation(&Vector::new(0., -1., 0.)));
+        let w = w.build();
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., -3.),
                          Vector::new(0., -1./sqrt2, 1./sqrt2));
@@ -593,12 +630,13 @@ mod tests {
 
     #[test]
     fn reflected_color_at_maximal_recursion_depth() {
-        let mut w = default_world();
+        let mut w = default_world().modify();
         let mut shape = Shape::plane();
         let mut m = Material::new();
         m.shader.reflective = 0.5;
         shape.set_material(m);
         w.add_shape(shape, translation(&Vector::new(0., -1., 0.)));
+        let w = w.build();
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., -3.),
                          Vector::new(0., -1./sqrt2, 1./sqrt2));
@@ -611,12 +649,13 @@ mod tests {
 
     #[test]
     fn shade_hit_with_a_reflective_material() {
-        let mut w = default_world();
+        let mut w = default_world().modify();
         let mut shape = Shape::plane();
         let mut m = Material::new();
         m.shader.reflective = 0.5;
         shape.set_material(m);
         w.add_shape(shape, translation(&Vector::new(0., -1., 0.)));
+        let w = w.build();
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., -3.),
                          Vector::new(0., -1./sqrt2, 1./sqrt2));
@@ -630,7 +669,7 @@ mod tests {
 
     #[test]
     fn terminiation_in_case_of_infinite_reflection() {
-        let mut w = World::new();
+        let mut w = WorldBuilder::new();
         let light = PointLight::new(Point::new(0., 0., 0.), Color::white());
         w.add_light(light);
         let mut m = Material::new();
@@ -641,6 +680,7 @@ mod tests {
         let mut upper = Shape::plane();
         upper.set_material(m.clone());
         w.add_shape(upper, translation(&Vector::new(0., 1., 0.)));
+        let w = w.build();
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 1., 0.));
         let _ = w.color_at(&r, 4); // should terminate successfully
     }
@@ -654,7 +694,7 @@ mod tests {
         s
     }
 
-    fn add_refraction_test_sphere(w: &mut World, refractive_index: f64,
+    fn add_refraction_test_sphere(w: &mut WorldBuilder, refractive_index: f64,
                                   transform: Transform) -> ShapeIndex {
         let mut s = glass_sphere();
         let mut m = *s.get_material();
@@ -674,12 +714,13 @@ mod tests {
     }
 
     fn refraction_test(index: usize, n1: f64, n2: f64) {
-        let mut w = World::new();
+        let mut w = WorldBuilder::new();
         add_refraction_test_sphere(&mut w, 1.5, scaling(2., 2., 2.));
         add_refraction_test_sphere(&mut w, 2.0,
                 translation(&Vector::new(0., 0., -0.25)));
         add_refraction_test_sphere(&mut w, 2.5,
                 translation(&Vector::new(0., 0., 0.25)));
+        let w = w.build();
         let r = Ray::new(Point::new(0., 0., -4.), Vector::new(0., 0., 1.));
         let xs = w.intersect(&r);
         let comps = w.prepare_computations(&xs[index], &r, &xs);
@@ -764,7 +805,7 @@ mod tests {
 
     #[test]
     fn shade_hit_with_a_transparent_material() {
-        let mut w = default_world();
+        let mut w = default_world().modify();
         let mut floor = Shape::plane();
         let mut m = Material::new();
         m.shader.transparency = 0.5;
@@ -777,6 +818,7 @@ mod tests {
         m.shader.ambient = 0.5;
         ball.set_material(m);
         w.add_shape(ball, translation(&Vector::new(0., -3.5, -0.5)));
+        let w = w.build();
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., -3.),
                          Vector::new(0., -1./sqrt2, 1./sqrt2));
@@ -790,8 +832,9 @@ mod tests {
 
     #[test]
     fn schlick_approximation_under_total_internal_reflection() {
-        let mut w = World::new();
+        let mut w = WorldBuilder::new();
         w.add_shape(glass_sphere(), identity());
+        let w = w.build();
         let x = 1./f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., x), Vector::new(0., 1., 0.));
         let s = ShapeIndex::new(0);
@@ -805,8 +848,9 @@ mod tests {
 
     #[test]
     fn schlick_approximation_with_perpendicular_viewing_angle() {
-        let mut w = World::new();
+        let mut w = WorldBuilder::new();
         w.add_shape(glass_sphere(), identity());
+        let w = w.build();
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 1., 0.));
         let s = ShapeIndex::new(0);
         let is = Intersections::from_vec(vec![Intersection::new(-1., s),
@@ -819,8 +863,9 @@ mod tests {
 
     #[test]
     fn schlick_approximation_with_small_angle_and_n2_larger_than_n1() {
-        let mut w = World::new();
+        let mut w = WorldBuilder::new();
         w.add_shape(glass_sphere(), identity());
+        let w = w.build();
         let r = Ray::new(Point::new(0., 0.99, -2.), Vector::new(0., 0., 1.));
         let s = ShapeIndex::new(0);
         let is = Intersections::from_vec(vec![Intersection::new(1.8589, s)]);
@@ -831,7 +876,7 @@ mod tests {
 
     #[test]
     fn shade_hit_with_reflective_transparent_material() {
-        let mut w = default_world();
+        let mut w = default_world().modify();
         let mut floor = Shape::plane();
         let mut m = Material::new();
         m.shader.reflective = 0.5;
@@ -845,6 +890,7 @@ mod tests {
         m.shader.ambient = 0.5;
         ball.set_material(m);
         w.add_shape(ball, translation(&Vector::new(0., -3.5, -0.5)));
+        let w = w.build();
         let sqrt2 = f64::sqrt(2.);
         let r = Ray::new(Point::new(0., 0., -3.),
                          Vector::new(0., -1./sqrt2, 1./sqrt2));
@@ -858,11 +904,12 @@ mod tests {
 
     #[test]
     fn parents_in_group_hierarchy() {
-        let mut world = World::new();
+        let mut world = WorldBuilder::new();
         let g1 = world.add_group(rotation_y(std::f64::consts::PI/2.));
         let g2 = world.add_subgroup(scaling(2., 2., 2.), g1);
         let si = world.add_shape_to_group(Shape::sphere(),
                             translation(&Vector::new(5., 0., 0.)), g2);
+        let world = world.build();
         assert_eq!(world.objects.parent_of_object(si), Parent::Group(g2));
         assert_eq!(world.objects.parent_of_object(g2), Parent::Group(g1));
         assert_eq!(world.objects.parent_of_object(g1), Parent::None);
@@ -870,11 +917,12 @@ mod tests {
 
     #[test]
     fn converting_a_point_from_world_to_object_space() {
-        let mut world = World::new();
+        let mut world = WorldBuilder::new();
         let g1 = world.add_group(rotation_y(std::f64::consts::PI/2.));
         let g2 = world.add_subgroup(scaling(2., 2., 2.), g1);
         let si = world.add_shape_to_group(Shape::sphere(),
                         translation(&Vector::new(5., 0., 0.)), g2);
+        let world = world.build();
         let p = world.objects.world_to_object(si.into(),
                                               &Point::new(-2., 0., -10.));
         assert_relative_eq!(p, Point::new(0., 0., -1.));
@@ -882,11 +930,12 @@ mod tests {
 
     #[test]
     fn converting_a_normal_from_object_to_world_space() {
-        let mut world = World::new();
+        let mut world = WorldBuilder::new();
         let g1 = world.add_group(rotation_y(std::f64::consts::PI/2.));
         let g2 = world.add_subgroup(scaling(1., 2., 3.), g1);
         let si = world.add_shape_to_group(Shape::sphere(),
                         translation(&Vector::new(5., 0., 0.)), g2);
+        let world = world.build();
         let x = f64::sqrt(3.) / 3.;
         let p = world.objects.normal_to_world(si.into(), &Vector::new(x, x, x));
         assert_relative_eq!(p, Vector::new(0.2857, 0.4286, -0.8571),
@@ -895,11 +944,12 @@ mod tests {
 
     #[test]
     fn finding_the_normal_on_a_child_object() {
-        let mut world = World::new();
+        let mut world = WorldBuilder::new();
         let g1 = world.add_group(rotation_y(std::f64::consts::PI/2.));
         let g2 = world.add_subgroup(scaling(1., 2., 3.), g1);
         let si = world.add_shape_to_group(Shape::sphere(),
                         translation(&Vector::new(5., 0., 0.)), g2);
+        let world = world.build();
         let sqrt3 = f64::sqrt(3.);
         let p = world.objects.normal_at(si,
                     &Point::new(sqrt3, 2./3.*sqrt3, -5. - sqrt3/3.));
@@ -909,11 +959,12 @@ mod tests {
 
     #[test]
     fn object_gets_transformed_with_group() {
-        let mut world = World::new();
+        let mut world = WorldBuilder::new();
         use crate::geometry::translation;
         let group = world.add_group(translation(&Vector::new(0., 2., 0.)));
         use crate::shapes::Shape;
         world.add_shape_to_group(Shape::sphere(), identity(), group);
+        let world = world.build();
 
         let r = Ray::new(Point::new(0., 0., 0.), Vector::new(0., 0., 1.));
         let xs = world.intersect(&r);
@@ -924,7 +975,7 @@ mod tests {
 
     #[test]
     fn recursive_transformation_of_nested_groups() {
-        let mut world = World::new();
+        let mut world = WorldBuilder::new();
         use crate::geometry::translation;
         let group = world.add_group(translation(&Vector::new(0., 1., 0.)));
         let group = world.add_subgroup(translation(&Vector::new(0., 1., 0.)),
@@ -932,6 +983,7 @@ mod tests {
         use crate::shapes::Shape;
         world.add_shape_to_group(Shape::cube(),
                                  translation(&Vector::new(0., 1., 0.)), group);
+        let world = world.build();
 
         let r = Ray::new(Point::new(0., 3., -2.), Vector::new(0., 0., 1.));
         // This requires that the bounding boxes of the nested groups are
