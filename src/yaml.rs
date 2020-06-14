@@ -4,13 +4,15 @@ use yaml_rust::{Yaml, YamlLoader};
 
 use crate::camera::Camera;
 use crate::color::Color;
+use crate::csg::{CsgIndex, CsgOperator};
 use crate::geometry::{identity, Point, rotation_x, rotation_y, rotation_z, scaling, Transform,
                       translation, Vector, view_transform};
 use crate::group::GroupIndex;
 use crate::light::PointLight;
 use crate::material::Material;
+use crate::object_store::ObjectIndex;
 use crate::patterns::Pattern;
-use crate::shapes::Shape;
+use crate::shapes::{Shape, ShapeIndex};
 use crate::world::{World, WorldBuilder};
 
 pub fn load_world_and_cameras_from_str(s: &str)
@@ -30,9 +32,22 @@ pub fn load_world_and_cameras_from_str(s: &str)
                     let light = load_light(&entry);
                     world.add_light(light);
                 },
-                "plane" => load_plane(&entry, &mut world, &materials, &groups),
-                "sphere" => load_sphere(&entry, &mut world, &materials, &groups),
-                "cube" => load_cube(&entry, &mut world, &materials, &groups),
+                "plane" => {
+                    load_toplevel_shape(Shape::plane(), &entry,
+                                        &mut world, &materials, &groups);
+                },
+                "sphere" => {
+                    load_toplevel_shape(Shape::sphere(), &entry,
+                                        &mut world, &materials, &groups);
+                },
+                "cube" => {
+                    load_toplevel_shape(Shape::cube(), &entry,
+                                        &mut world, &materials, &groups);
+                },
+                "csg" => {
+                    let csg = load_csg(&entry, &mut world, &materials);
+                    world.add_object_to_scene(csg.into());
+                },
                 unknown => { // TODO: error
                     println!("trying to add unknown object: {}", unknown);
                 }
@@ -73,25 +88,23 @@ fn load_light(entry: &Yaml) -> PointLight {
     PointLight::new(position, color)
 }
 
-fn load_sphere(entry: &Yaml, world: &mut WorldBuilder,
-               materials: &MaterialStore, groups: &GroupStore) {
-    load_shape_properties(Shape::sphere(), entry, world, materials, groups);
+fn load_toplevel_shape<'a>(shape: Shape, entry: &'a Yaml,
+                           world: &mut WorldBuilder,
+                           materials: &MaterialStore,
+                           groups: &GroupStore) {
+    let (shape, group) = load_shape_properties(shape, entry, world, materials);
+    if let Some(group) = group {
+        let group = groups[group];
+        world.set_group_of(shape.into(), group);
+    } else {
+        world.add_object_to_scene(shape.into());
+    }
 }
 
-fn load_plane(entry: &Yaml, world: &mut WorldBuilder,
-              materials: &MaterialStore, groups: &GroupStore) {
-    load_shape_properties(Shape::plane(), entry, world, materials, groups);
-}
-
-fn load_cube(entry: &Yaml, world: &mut WorldBuilder,
-             materials: &MaterialStore, groups: &GroupStore) {
-    load_shape_properties(Shape::cube(), entry, world, materials, groups);
-}
-
-fn load_shape_properties(mut shape: Shape, entry: &Yaml,
-                         world: &mut WorldBuilder,
-                         materials: &MaterialStore,
-                         groups: &GroupStore) {
+fn load_shape_properties<'a>(mut shape: Shape, entry: &'a Yaml,
+                             world: &mut WorldBuilder,
+                             materials: &MaterialStore)
+                            -> (ShapeIndex, Option<&'a str>) {
     let mut group = None;
     let mut transform = identity();
     for (key, entry) in entry.as_hash().unwrap().iter() {
@@ -106,8 +119,7 @@ fn load_shape_properties(mut shape: Shape, entry: &Yaml,
                 transform = parse_transform(&entry);
             },
             "group" => {
-                let name = entry.as_str().unwrap();
-                group = Some(groups[name]);
+                group = entry.as_str();
             },
             "add" => {
                 // ignore add: {shape_type}
@@ -117,12 +129,86 @@ fn load_shape_properties(mut shape: Shape, entry: &Yaml,
             }
         }
     }
-    let shape = world.add_shape(shape, transform);
-    if let Some(group) = group {
-        world.set_group_of(shape.into(), group);
-    } else {
-        world.add_object_to_scene(shape.into());
+    (world.add_shape(shape, transform), group)
+}
+
+fn load_object(entry: &Yaml, mut world: &mut WorldBuilder,
+               materials: &MaterialStore) -> ObjectIndex {
+    if !entry.as_hash().unwrap().contains_key(&Yaml::from_str("add")) {
+        panic!("Expected keyword 'add' not found.");
     }
+    let (obj, group) = match entry["add"].as_str().unwrap() {
+        "plane" => {
+            let (s, group) = load_shape_properties(Shape::plane(), &entry,
+                                                   &mut world, &materials);
+            (s.into(), group)
+        },
+        "sphere" => {
+            let (s, group) = load_shape_properties(Shape::sphere(), &entry,
+                                                   &mut world, &materials);
+            (s.into(), group)
+        },
+        "cube" => {
+            let (s, group) = load_shape_properties(Shape::cube(), &entry,
+                                                   &mut world, &materials);
+            (s.into(), group)
+        },
+        "csg" => {
+            let csg = load_csg(&entry, &mut world, &materials).into();
+            (csg, None)
+        },
+        "group" => unimplemented!(),
+        unknown => { // TODO: error
+            panic!("trying to add unknown object: {}", unknown);
+        }
+    };
+    assert_eq!(group, None);
+    obj
+}
+
+fn load_csg(entry: &Yaml, world: &mut WorldBuilder,
+            materials: &MaterialStore) -> CsgIndex {
+    let entry = entry.as_hash().unwrap();
+    let mut transform = identity();
+    let mut operator: Option<CsgOperator> = None;
+    let mut operands: Option<(ObjectIndex, ObjectIndex)> = None;
+    for (key, entry) in entry.iter() {
+        match key.as_str().unwrap() {
+            "operator" => {
+                use CsgOperator::*;
+                operator = match entry.as_str().unwrap() {
+                    "union" => Some(Union),
+                    "intersection" => Some(Intersection),
+                    "difference" => Some(Difference),
+                    unknown => panic!("Unknown CSG operator: {}", unknown),
+                }
+            },
+            "transform" => {
+                transform = parse_transform(&entry);
+            },
+            "operands" => {
+                let entries = entry.as_vec().unwrap();
+                assert_eq!(entries.len(), 2);
+                let l = load_object(&entries[0], world, materials);
+                let r = load_object(&entries[1], world, materials);
+                operands = Some((l, r));
+            },
+            "add" => {
+                // ignore add: csg
+            },
+            unknown => {
+                // TODO: unknown keyword
+                println!("unknown csg parameter: {}", unknown);
+            }
+        }
+    }
+    if operator.is_none() {
+        panic!("Missing operator of CSG");
+    }
+    if operands.is_none() {
+        panic!("Missing operands of CSG");
+    }
+    world.add_csg(operator.unwrap(), operands.unwrap(), transform)
 }
 
 fn parse_point(entry: &Yaml) -> Point {
