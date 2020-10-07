@@ -360,7 +360,7 @@ impl ObjectStore {
                 let mut bounds = Bounds::empty();
                 let mut children = self.groups.child_iter(group);
                 while let Some(child) = children.next(&self.groups) {
-                    let child_bounds = self.set_bounds_of(child.into())
+                    let child_bounds = self.set_bounds_of(child)
                             .to_global(self.get_transform_of_object(child));
                     bounds.merge_bounds(&child_bounds);
                 }
@@ -370,10 +370,10 @@ impl ObjectStore {
             ObjectIndex::CSG(csg) => {
                 let mut bounds = Bounds::empty();
                 let (left, right) = self.csgs.children(csg);
-                let left_bounds = self.set_bounds_of(left.into())
+                let left_bounds = self.set_bounds_of(left)
                         .to_global(self.get_transform_of_object(left));
                 bounds.merge_bounds(&left_bounds);
-                let right_bounds = self.set_bounds_of(right.into())
+                let right_bounds = self.set_bounds_of(right)
                         .to_global(self.get_transform_of_object(right));
                 bounds.merge_bounds(&right_bounds);
                 *self.csgs.bounds_mut(csg) = bounds;
