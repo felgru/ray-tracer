@@ -34,11 +34,11 @@ impl ShapeType for Cube {
         // with themselves, so we can expect them to be exactly the same.
         #[allow(clippy::float_cmp)]
         if maxc == point[0].abs() {
-            Vector::new(point[0], 0., 0.)
+            Vector::ith(0, point[0])
         } else if maxc == point[1].abs() {
-            Vector::new(0., point[1], 0.)
+            Vector::ith(1, point[1])
         } else {
-            Vector::new(0., 0., point[2])
+            Vector::ith(2, point[2])
         }
     }
 
