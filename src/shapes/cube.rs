@@ -29,6 +29,10 @@ impl ShapeType for Cube {
     fn local_normal_at(&self, point: &Point) -> Vector {
         let maxc = point[0].abs().max(point[1].abs()).max(point[2].abs());
 
+        // Strict equality comarison between floats is actually OK here, as
+        // we are comparing the absolute values of the coordinates of point
+        // with themselves, so we can expect them to be exactly the same.
+        #[allow(clippy::float_cmp)]
         if maxc == point[0].abs() {
             Vector::new(point[0], 0., 0.)
         } else if maxc == point[1].abs() {
