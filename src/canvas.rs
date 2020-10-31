@@ -42,17 +42,8 @@ impl Canvas {
         use image::{ImageBuffer, RgbImage};
         let mut img: RgbImage = ImageBuffer::new(self.width as u32,
                                                  self.height as u32);
-        let discretize = |x: f64| -> u8 {
-            (x * (std::u8::MAX as f64)).round() as u8
-        };
-        let to_rgb = |c: &Color| -> image::Rgb<u8> {
-            let c = c.clamp();
-            image::Rgb([discretize(c.red),
-                        discretize(c.green),
-                        discretize(c.blue)])
-        };
         for (dest, src) in img.pixels_mut().zip(self.data.iter()) {
-            *dest = to_rgb(&src);
+            *dest = src.to_rgb();
         }
         img
     }
