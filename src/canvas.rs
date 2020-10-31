@@ -43,7 +43,7 @@ impl Canvas {
         let mut img: RgbImage = ImageBuffer::new(self.width as u32,
                                                  self.height as u32);
         for (dest, src) in img.pixels_mut().zip(self.data.iter()) {
-            *dest = src.to_rgb();
+            *dest = src.to_linear_rgb();
         }
         img
     }

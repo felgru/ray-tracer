@@ -5,6 +5,8 @@ use std::ops::Mul;
 
 use approx::{AbsDiffEq, RelativeEq};
 
+const GAMMA: f64 = 2.2;
+
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Color {
     pub red: f64,
@@ -41,13 +43,32 @@ impl Color {
     }
 
     pub fn to_rgb(self) -> image::Rgb<u8> {
+        fn gamma_encode(linear: f64) -> f64 {
+            linear.powf(1. / GAMMA)
+        };
+        self.clamp()
+            .map_components(gamma_encode)
+            .clamped_to_rgb()
+    }
+
+    fn map_components<F: Fn(f64) -> f64>(self, f: F) -> Self {
+        Self::new(f(self.red),
+                  f(self.green),
+                  f(self.blue))
+    }
+
+    pub fn to_linear_rgb(self) -> image::Rgb<u8> {
+        self.clamp().clamped_to_rgb()
+    }
+
+    fn clamped_to_rgb(self) -> image::Rgb<u8> {
+        // self is expected to be clamped.
         fn discretize(x: f64) -> u8 {
             (x * (std::u8::MAX as f64)).round() as u8
-        };
-        let c = self.clamp();
-        image::Rgb([discretize(c.red),
-                    discretize(c.green),
-                    discretize(c.blue)])
+        }
+        image::Rgb([discretize(self.red),
+                    discretize(self.green),
+                    discretize(self.blue)])
     }
 }
 
