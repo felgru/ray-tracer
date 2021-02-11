@@ -27,17 +27,10 @@ impl Color {
 
     pub fn clamp(self) -> Self {
         Color {
-            red: Self::clamp_component(self.red),
-            green: Self::clamp_component(self.green),
-            blue: Self::clamp_component(self.blue),
+            red: self.red.clamp(0., 1.),
+            green: self.green.clamp(0., 1.),
+            blue: self.blue.clamp(0., 1.),
         }
-    }
-
-    fn clamp_component(comp: f64) -> f64 {
-        let mut x = comp;
-        if x < 0. { x = 0.; }
-        if x > 1. { x = 1.; }
-        x
     }
 
     pub fn to_rgb(self) -> image::Rgb<u8> {
