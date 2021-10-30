@@ -1,4 +1,4 @@
-use na::{Matrix4, Point3, Projective3, Rotation3, U1, U3, Unit, Vector3};
+use na::{Matrix4, Point3, Projective3, Rotation3, Unit, Vector3};
 
 pub type Point = Point3<f64>;
 pub type Vector = Vector3<f64>;
@@ -14,7 +14,7 @@ pub fn translation(vec: &Vector) -> Transform {
                              0., 1., 0., 0.,
                              0., 0., 1., 0.,
                              0., 0., 0., 1.);
-    m.fixed_slice_mut::<U3, U1>(0, 3).copy_from(vec);
+    m.fixed_slice_mut::<3, 1>(0, 3).copy_from(vec);
     Transform::from_matrix_unchecked(m)
 }
 

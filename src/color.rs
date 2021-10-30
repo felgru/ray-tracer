@@ -36,7 +36,7 @@ impl Color {
     pub fn to_rgb(self) -> image::Rgb<u8> {
         fn discretize(x: f64) -> u8 {
             (x * (std::u8::MAX as f64)).round() as u8
-        };
+        }
         let c = self.clamp();
         image::Rgb([discretize(c.red),
                     discretize(c.green),

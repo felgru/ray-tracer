@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-nalgebra = "0.24.0"
-image = "0.23.12"
-approx = "0.4.0"
-yaml-rust = "0.4.4"
+nalgebra = "0.29.0"
+image = "0.23.14"
+approx = "0.5.0"
+yaml-rust = "0.4.5"

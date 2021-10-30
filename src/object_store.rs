@@ -326,9 +326,8 @@ impl ObjectStore {
 
     pub fn normal_to_world(&self, obj: ObjectIndex, n: &Vector) -> Vector {
         let inverse_transform = self.get_transform_of_object(obj).inverse();
-        use na::{U3};
         let inv_transp = inverse_transform.to_homogeneous()
-                                          .fixed_slice::<U3,U3>(0, 0)
+                                          .fixed_slice::<3,3>(0, 0)
                                           .transpose().to_homogeneous();
         let inv_transp = Transform::from_matrix_unchecked(inv_transp);
         let world_normal = (inv_transp * n).normalize();
