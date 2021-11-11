@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2019–2021 Felix Gruber
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use crate::intersections::Intersections;
 use crate::object_store::{ObjectIndex, ObjectStore};
 use crate::rays::Ray;

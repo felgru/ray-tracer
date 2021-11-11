@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2019–2021 Felix Gruber
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::iter::Sum;
 use std::ops::Add;
 use std::ops::Sub;

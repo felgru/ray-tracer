@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2019–2021 Felix Gruber
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use na::{Matrix4, Point3, Projective3, Rotation3, Unit, Vector3};
 
 pub type Point = Point3<f64>;

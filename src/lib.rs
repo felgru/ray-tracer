@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2019–2021 Felix Gruber
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 extern crate image;
 extern crate nalgebra as na;
 #[cfg(test)]

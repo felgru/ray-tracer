@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2019–2021 Felix Gruber
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use crate::color::Color;
 use crate::geometry::{identity, Point, Transform};
 
